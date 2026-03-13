@@ -1,0 +1,508 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import { motion } from 'motion/react';
+import { ArrowLeft, Plus, X, BookOpen, Play, Edit, Trash2, FileText, Music, Box, Video } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Badge } from '../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { toast } from 'sonner';
+import type { CourseLevel, Module, Content, ContentType } from '../types';
+
+const ContentIcon: React.FC<{ type: ContentType; className?: string }> = ({ type, className = 'w-4 h-4' }) => {
+  switch (type) {
+    case 'video':  return <Video    className={`${className} text-blue-500`}   />;
+    case 'pdf':    return <FileText className={`${className} text-red-500`}    />;
+    case 'audio':  return <Music    className={`${className} text-green-500`}  />;
+    case 'scorm':  return <Box      className={`${className} text-purple-500`} />;
+    default:       return <Play     className={`${className} text-gray-400`}   />;
+  }
+};
+
+const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
+  video: 'Vidéo', pdf: 'PDF', audio: 'Audio', scorm: 'SCORM',
+};
+
+const CONTENT_TYPE_COLORS: Record<ContentType, string> = {
+  video: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  pdf:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  audio: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  scorm: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+};
+
+const defaultContentForm = {
+  title: '', type: 'video' as ContentType, url: '', duration: 0, summary: '', thumbnail: '',
+};
+
+export const EditCourse: React.FC = () => {
+  const navigate = useNavigate();
+  const { courseId } = useParams<{ courseId: string }>();
+  const { currentUser, courses, setCourses, modules, setModules, quizzes, setQuizzes } = useApp();
+
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('info');
+
+  const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
+  const [editingModule, setEditingModule]         = useState<Module | null>(null);
+  const [moduleForm, setModuleForm]               = useState({ title: '', description: '', duration: 0 });
+
+  const [contentModalModuleId, setContentModalModuleId] = useState<string | null>(null);
+  const [editingContent, setEditingContent]             = useState<Content | null>(null);
+  const [contentForm, setContentForm]                   = useState(defaultContentForm);
+
+  const course        = courses.find(c => c.id === courseId);
+  const courseModules = modules.filter(m => m.courseId === courseId).sort((a, b) => a.order - b.order);
+  const courseQuizzes = quizzes.filter(q => courseModules.some(m => m.id === q.moduleId));
+
+  const [formData, setFormData] = useState({
+    title: '', description: '', category: '',
+    level: 'Débutant' as CourseLevel, estimatedDuration: 0, thumbnail: '',
+  });
+  const [prerequisites, setPrerequisites]     = useState<string[]>([]);
+  const [newPrerequisite, setNewPrerequisite] = useState('');
+
+  useEffect(() => {
+    if (!course) { toast.error('Formation introuvable'); navigate('/app/courses'); return; }
+    setFormData({
+      title: course.title, description: course.description, category: course.category,
+      level: course.level, estimatedDuration: course.estimatedDuration, thumbnail: course.thumbnail || '',
+    });
+    setPrerequisites(course.prerequisites || []);
+  }, [course]);
+
+  if (currentUser?.role !== 'instructor' && currentUser?.role !== 'admin') { navigate('/app'); return null; }
+  if (!course) return null;
+
+  // ── Cours ──────────────────────────────────────────────────────────────────
+  const handleChange = (field: string, value: string | number) =>
+    setFormData(prev => ({ ...prev, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true);
+    setTimeout(() => {
+      setCourses(courses.map(c => c.id === courseId ? { ...c, ...formData, prerequisites } : c));
+      toast.success('✅ Formation mise à jour avec succès !');
+      setLoading(false);
+    }, 1000);
+  };
+
+  // ── Modules ────────────────────────────────────────────────────────────────
+  const handleModuleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!moduleForm.title || !moduleForm.description) { toast.error('Veuillez remplir les champs obligatoires'); return; }
+    if (editingModule) {
+      setModules(modules.map(m => m.id === editingModule.id ? { ...m, ...moduleForm } : m));
+      toast.success('Module mis à jour');
+    } else {
+      setModules([...modules, {
+        id: `m-${Date.now()}`, courseId: courseId!, ...moduleForm,
+        duration: moduleForm.duration || 0, order: courseModules.length + 1, contents: [],
+      }]);
+      toast.success('Module créé avec succès');
+    }
+    setIsModuleModalOpen(false); setModuleForm({ title: '', description: '', duration: 0 }); setEditingModule(null);
+  };
+
+  const deleteModule = (id: string) => {
+    if (confirm('Supprimer ce module ? Tous ses contenus et quiz seront supprimés.')) {
+      setModules(modules.filter(m => m.id !== id));
+      setQuizzes(quizzes.filter(q => q.moduleId !== id));
+      toast.success('Module supprimé');
+    }
+  };
+
+  const deleteQuiz = (id: string) => {
+    if (confirm('Supprimer ce quiz ?')) { setQuizzes(quizzes.filter(q => q.id !== id)); toast.success('Quiz supprimé'); }
+  };
+
+  // ── Contenus ───────────────────────────────────────────────────────────────
+  const updateModuleContents = (moduleId: string, updater: (c: Content[]) => Content[]) =>
+    setModules(modules.map(m => m.id === moduleId ? { ...m, contents: updater(m.contents) } : m));
+
+  const openAddContent = (moduleId: string) => {
+    setEditingContent(null); setContentForm(defaultContentForm); setContentModalModuleId(moduleId);
+  };
+  const openEditContent = (moduleId: string, content: Content) => {
+    setEditingContent(content);
+    setContentForm({ title: content.title, type: content.type, url: content.url,
+      duration: content.duration, summary: content.summary, thumbnail: content.thumbnail || '' });
+    setContentModalModuleId(moduleId);
+  };
+  const closeContentModal = () => {
+    setContentModalModuleId(null); setEditingContent(null); setContentForm(defaultContentForm);
+  };
+
+  const handleContentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contentModalModuleId) return;
+    if (!contentForm.title.trim() || !contentForm.url.trim()) {
+      toast.error("Le titre et l'URL sont obligatoires"); return;
+    }
+    if (editingContent) {
+      updateModuleContents(contentModalModuleId, contents =>
+        contents.map(c => c.id === editingContent.id ? {
+          ...c, title: contentForm.title, type: contentForm.type, url: contentForm.url,
+          duration: contentForm.duration, summary: contentForm.summary,
+          thumbnail: contentForm.thumbnail || undefined,
+        } : c)
+      );
+      toast.success('Contenu mis à jour');
+    } else {
+      updateModuleContents(contentModalModuleId, contents => [...contents, {
+        id: `c-${Date.now()}`, moduleId: contentModalModuleId,
+        title: contentForm.title, type: contentForm.type, url: contentForm.url,
+        duration: contentForm.duration, summary: contentForm.summary,
+        thumbnail: contentForm.thumbnail || undefined,
+      }]);
+      toast.success('Contenu ajouté avec succès');
+    }
+    closeContentModal();
+  };
+
+  const deleteContent = (moduleId: string, contentId: string) => {
+    if (confirm('Supprimer ce contenu ?')) {
+      updateModuleContents(moduleId, contents => contents.filter(c => c.id !== contentId));
+      toast.success('Contenu supprimé');
+    }
+  };
+
+  const urlPlaceholder: Record<ContentType, string> = {
+    video: 'https://www.youtube.com/watch?v=... ou lien .mp4',
+    pdf:   'https://example.com/document.pdf',
+    audio: 'https://example.com/podcast.mp3',
+    scorm: 'https://example.com/package.zip',
+  };
+
+  // ── Rendu ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50/30 dark:from-slate-950 dark:to-purple-950/30">
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+          <Button variant="ghost" onClick={() => navigate(`/app/courses/${courseId}`)} className="gap-2">
+            <ArrowLeft className="w-4 h-4" /> Retour
+          </Button>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Modifier la formation
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Mettez à jour les informations et le contenu de votre formation
+          </p>
+        </motion.div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="info">Informations générales</TabsTrigger>
+            <TabsTrigger value="content">Modules & Contenus</TabsTrigger>
+          </TabsList>
+
+          {/* ── Onglet Info ──────────────────────────────────────────────── */}
+          <TabsContent value="info">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              <Card>
+                <CardHeader><CardTitle>Informations de la formation</CardTitle></CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Titre *</Label>
+                      <Input id="title" value={formData.title} onChange={(e) => handleChange('title', e.target.value)} placeholder="Ex: React Avancé" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description *</Label>
+                      <Textarea id="description" value={formData.description} onChange={(e) => handleChange('description', e.target.value)} rows={4} required />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Catégorie *</Label>
+                        <Input value={formData.category} onChange={(e) => handleChange('category', e.target.value)} required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Niveau *</Label>
+                        <Select value={formData.level} onValueChange={(v) => handleChange('level', v)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Débutant">Débutant</SelectItem>
+                            <SelectItem value="Intermédiaire">Intermédiaire</SelectItem>
+                            <SelectItem value="Avancé">Avancé</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Durée estimée (heures) *</Label>
+                      <Input type="number" min="1" value={formData.estimatedDuration || ''} onChange={(e) => handleChange('estimatedDuration', parseInt(e.target.value) || 0)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>URL de la miniature *</Label>
+                      <Input value={formData.thumbnail} onChange={(e) => handleChange('thumbnail', e.target.value)} placeholder="https://example.com/image.jpg" required />
+                      {formData.thumbnail && (
+                        <img src={formData.thumbnail} alt="Aperçu" className="w-full h-48 object-cover rounded-lg mt-2"
+                          onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80'; }} />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Prérequis</Label>
+                      <div className="flex gap-2">
+                        <Input value={newPrerequisite} onChange={(e) => setNewPrerequisite(e.target.value)} placeholder="Ajouter un prérequis..."
+                          onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newPrerequisite.trim()) { setPrerequisites([...prerequisites, newPrerequisite.trim()]); setNewPrerequisite(''); } } }} />
+                        <Button type="button" variant="outline" className="gap-2"
+                          onClick={() => { if (newPrerequisite.trim()) { setPrerequisites([...prerequisites, newPrerequisite.trim()]); setNewPrerequisite(''); } }}>
+                          <Plus className="w-4 h-4" /> Ajouter
+                        </Button>
+                      </div>
+                      {prerequisites.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {prerequisites.map((p, i) => (
+                            <Badge key={i} variant="secondary" className="gap-2">{p}
+                              <button type="button" onClick={() => setPrerequisites(prerequisites.filter((_, idx) => idx !== i))} className="hover:text-red-600"><X className="w-3 h-3" /></button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-4 pt-4">
+                      <Button type="submit" className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600" disabled={loading}>
+                        {loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => navigate(`/app/courses/${courseId}`)}>Annuler</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
+
+          {/* ── Onglet Modules & Contenus ─────────────────────────────────── */}
+          <TabsContent value="content">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="space-y-6">
+
+              {/* Header */}
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold">Modules de la formation</h2>
+                  <p className="text-gray-500">Gérez les chapitres, leurs contenus et les quiz</p>
+                </div>
+                <Dialog open={isModuleModalOpen} onOpenChange={setIsModuleModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700"
+                      onClick={() => { setEditingModule(null); setModuleForm({ title: '', description: '', duration: 0 }); }}>
+                      <Plus className="w-4 h-4" /> Nouveau Module
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent aria-describedby={undefined}>
+                    <DialogHeader><DialogTitle>{editingModule ? 'Modifier le module' : 'Ajouter un module'}</DialogTitle></DialogHeader>
+                    <form onSubmit={handleModuleSubmit} className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label>Titre *</Label>
+                        <Input value={moduleForm.title} onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })} required placeholder="Ex: Introduction" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description *</Label>
+                        <Textarea value={moduleForm.description} onChange={(e) => setModuleForm({ ...moduleForm, description: e.target.value })} required placeholder="Que vont apprendre les élèves ?" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Durée (minutes)</Label>
+                        <Input type="number" min="0" value={moduleForm.duration || ''} onChange={(e) => setModuleForm({ ...moduleForm, duration: parseInt(e.target.value) || 0 })} />
+                      </div>
+                      <Button type="submit" className="w-full">{editingModule ? 'Mettre à jour' : 'Créer'}</Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {/* Modal Contenu */}
+              <Dialog open={contentModalModuleId !== null} onOpenChange={(open) => { if (!open) closeContentModal(); }}>
+                <DialogContent aria-describedby={undefined} className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>{editingContent ? 'Modifier le contenu' : 'Ajouter un contenu'}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleContentSubmit} className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <Label>Type de contenu *</Label>
+                      <Select value={contentForm.type} onValueChange={(v: ContentType) => setContentForm({ ...contentForm, type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="video"><span className="flex items-center gap-2"><Video className="w-4 h-4 text-blue-500" /> Vidéo</span></SelectItem>
+                          <SelectItem value="pdf"><span className="flex items-center gap-2"><FileText className="w-4 h-4 text-red-500" /> PDF</span></SelectItem>
+                          <SelectItem value="audio"><span className="flex items-center gap-2"><Music className="w-4 h-4 text-green-500" /> Audio</span></SelectItem>
+                          <SelectItem value="scorm"><span className="flex items-center gap-2"><Box className="w-4 h-4 text-purple-500" /> SCORM</span></SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Titre *</Label>
+                      <Input value={contentForm.title} onChange={(e) => setContentForm({ ...contentForm, title: e.target.value })} placeholder="Ex: Introduction aux Hooks React" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>URL du contenu *</Label>
+                      <Input value={contentForm.url} onChange={(e) => setContentForm({ ...contentForm, url: e.target.value })} placeholder={urlPlaceholder[contentForm.type]} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Durée (minutes)</Label>
+                      <Input type="number" min="0" value={contentForm.duration || ''} onChange={(e) => setContentForm({ ...contentForm, duration: parseInt(e.target.value) || 0 })} placeholder="Ex: 12" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Résumé / Description</Label>
+                      <Textarea value={contentForm.summary} onChange={(e) => setContentForm({ ...contentForm, summary: e.target.value })} placeholder="Décrivez brièvement ce contenu..." rows={2} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>URL miniature <span className="text-gray-400 text-xs">(optionnel)</span></Label>
+                      <Input value={contentForm.thumbnail} onChange={(e) => setContentForm({ ...contentForm, thumbnail: e.target.value })} placeholder="https://example.com/thumb.jpg" />
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <Button type="button" variant="outline" className="flex-1" onClick={closeContentModal}>Annuler</Button>
+                      <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
+                        {editingContent ? 'Enregistrer les modifications' : 'Ajouter le contenu'}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              {/* Liste modules */}
+              {courseModules.length > 0 ? (
+                <Accordion type="single" collapsible className="space-y-4">
+                  {courseModules.map((module, index) => {
+                    const quiz = courseQuizzes.find(q => q.moduleId === module.id);
+                    return (
+                      <AccordionItem key={module.id} value={module.id}
+                        className="bg-white dark:bg-slate-900 border rounded-lg px-4 overflow-hidden shadow-sm">
+                        <AccordionTrigger className="hover:no-underline py-4">
+                          <div className="flex items-center gap-4 w-full text-left">
+                            <div className="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center font-bold flex-shrink-0">{index + 1}</div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold">{module.title}</h3>
+                              <p className="text-sm text-gray-500 line-clamp-1">{module.description}</p>
+                            </div>
+                            <div className="flex items-center gap-3 mr-4 flex-shrink-0">
+                              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{module.contents.length} contenu(s)</span>
+                              <span className="text-sm text-gray-400">{module.duration} min</span>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+
+                        <AccordionContent className="pb-4 pt-2 border-t mt-2 space-y-5">
+                          {/* Actions module */}
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" className="gap-2 text-blue-600 hover:text-blue-700"
+                              onClick={() => { setEditingModule(module); setModuleForm({ title: module.title, description: module.description, duration: module.duration }); setIsModuleModalOpen(true); }}>
+                              <Edit className="w-4 h-4" /> Modifier le module
+                            </Button>
+                            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => deleteModule(module.id)}>
+                              <Trash2 className="w-4 h-4" /> Supprimer
+                            </Button>
+                          </div>
+
+                          {/* ── Contenus ──────────────────────────────── */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">Contenus du module</h4>
+                              <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => openAddContent(module.id)}>
+                                <Plus className="w-3.5 h-3.5" /> Ajouter un contenu
+                              </Button>
+                            </div>
+
+                            {module.contents.length > 0 ? (
+                              <div className="space-y-2">
+                                {module.contents.map(c => (
+                                  <div key={c.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <ContentIcon type={c.type} />
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-medium truncate">{c.title}</p>
+                                        {c.duration > 0 && <p className="text-xs text-gray-400">{c.duration} min</p>}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CONTENT_TYPE_COLORS[c.type]}`}>
+                                        {CONTENT_TYPE_LABELS[c.type]}
+                                      </span>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEditContent(module.id, c)} title="Modifier">
+                                        <Edit className="w-3.5 h-3.5 text-blue-600" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => deleteContent(module.id, c.id)} title="Supprimer">
+                                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed rounded-lg border-gray-200 dark:border-slate-700">
+                                <Play className="w-8 h-8 text-gray-300 mb-2" />
+                                <p className="text-sm text-gray-500 mb-3">Aucun contenu ajouté à ce module</p>
+                                <Button size="sm" variant="outline" className="gap-2" onClick={() => openAddContent(module.id)}>
+                                  <Plus className="w-4 h-4" /> Ajouter le premier contenu
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ── Quiz ──────────────────────────────────── */}
+                          <div className="space-y-2 pt-2 border-t">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">Évaluation (Quiz)</h4>
+                              {!quiz && (
+                                <Button size="sm" variant="secondary" className="gap-2"
+                                  onClick={() => navigate(`/app/courses/${course.id}/modules/${module.id}/quiz/create`)}>
+                                  <Plus className="w-4 h-4" /> Créer un quiz
+                                </Button>
+                              )}
+                            </div>
+                            {quiz ? (
+                              <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800">
+                                <div>
+                                  <h5 className="font-medium text-purple-900 dark:text-purple-300">{quiz.title}</h5>
+                                  <p className="text-sm text-purple-700 dark:text-purple-400">{quiz.questions.length} questions • Seuil : {quiz.passingScore}%</p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button size="sm" variant="outline" className="gap-2 text-purple-700 border-purple-200 hover:bg-purple-100"
+                                    onClick={() => navigate(`/app/courses/${course.id}/modules/${module.id}/quiz/${quiz.id}/edit`)}>
+                                    <Edit className="w-4 h-4" /> Modifier
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => deleteQuiz(quiz.id)}>
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500 italic">Ce module n'a pas encore de quiz.</p>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              ) : (
+                <Card className="bg-gray-50 dark:bg-slate-900 border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                      <BookOpen className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-2">Aucun module pour le moment</h3>
+                    <p className="text-gray-500 max-w-md mb-6">Créez des modules pour structurer votre formation, ajoutez des contenus (vidéo, PDF, audio, SCORM) et des quiz.</p>
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700"
+                      onClick={() => { setEditingModule(null); setModuleForm({ title: '', description: '', duration: 0 }); setIsModuleModalOpen(true); }}>
+                      <Plus className="w-4 h-4" /> Créer le premier module
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </motion.div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};

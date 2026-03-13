@@ -1,0 +1,137 @@
+// src/app/context/AuthContext.tsx
+//
+// Ce contexte gère TOUT ce qui concerne l'authentification :
+// - Stocker l'utilisateur connecté
+// - Stocker le token dans localStorage
+// - Fournir les fonctions login / register / logout
+
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User } from '../types';
+import {
+  loginUser,
+  registerUser,
+  logoutUser,
+  getMe,
+  forgotPassword as apiForgotPassword,
+  LoginData,
+  RegisterData,
+} from '../services/authService';
+
+// ─── TYPE DU CONTEXTE ────────────────────────────────────
+interface AuthContextType {
+  // L'utilisateur actuellement connecté (null si pas connecté)
+  currentUser: User | null;
+  // true si on est en train de vérifier la session au chargement
+  loading: boolean;
+  // true si l'utilisateur est connecté
+  isAuthenticated: boolean;
+
+  // Fonctions disponibles dans toute l'application
+  login: (data: LoginData) => Promise<User>;
+  register: (data: RegisterData) => Promise<User>;
+  logout: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<string>;
+  setCurrentUser: (user: User | null) => void;
+}
+
+// ─── CRÉATION DU CONTEXTE ────────────────────────────────
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// ─── PROVIDER ────────────────────────────────────────────
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true); // true au démarrage
+
+  // Au lancement de l'app, on vérifie si un token existe dans localStorage
+  // Si oui, on récupère les infos de l'utilisateur depuis le backend
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+
+      if (token) {
+        try {
+          // On demande au backend qui est cet utilisateur
+          const user = await getMe();
+          setCurrentUser(user);
+        } catch {
+          // Token invalide ou expiré → on nettoie
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+          setCurrentUser(null);
+        }
+      }
+
+      setLoading(false); // Fin de la vérification initiale
+    };
+
+    initAuth();
+  }, []);
+
+  // ─── CONNEXION ─────────────────────────────────────────
+  const login = async (data: LoginData): Promise<User> => {
+    const { user, token } = await loginUser(data);
+
+    // Sauvegarde du token et de l'utilisateur dans localStorage
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_user', JSON.stringify(user));
+
+    setCurrentUser(user);
+    return user;
+  };
+
+  // ─── INSCRIPTION ───────────────────────────────────────
+  const register = async (data: RegisterData): Promise<User> => {
+    const { user, token } = await registerUser(data);
+
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_user', JSON.stringify(user));
+
+    setCurrentUser(user);
+    return user;
+  };
+
+  // ─── DÉCONNEXION ───────────────────────────────────────
+  const logout = async (): Promise<void> => {
+    try {
+      await logoutUser(); // Informe le backend
+    } catch {
+      // Si l'API échoue (ex: token déjà expiré), on continue quand même
+    }
+
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    setCurrentUser(null);
+  };
+
+  // ─── MOT DE PASSE OUBLIÉ ───────────────────────────────
+  const forgotPassword = async (email: string): Promise<string> => {
+    return apiForgotPassword(email);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        loading,
+        isAuthenticated: !!currentUser,
+        login,
+        register,
+        logout,
+        forgotPassword,
+        setCurrentUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// ─── HOOK PERSONNALISÉ ───────────────────────────────────
+// Utilise ce hook dans n'importe quel composant pour accéder à l'auth
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth doit être utilisé dans un AuthProvider');
+  }
+  return context;
+};
