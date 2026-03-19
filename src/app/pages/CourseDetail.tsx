@@ -1,390 +1,203 @@
-import React, { useEffect, useState } from 'react';
+// src/app/pages/CourseDetail.tsx — inscription connectée au vrai backend
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { 
-  Clock, 
-  BarChart, 
-  BookOpen, 
-  Play, 
-  CheckCircle, 
-  Lock,
-  ArrowLeft,
-  User,
-  Award
-} from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { Clock, BarChart, BookOpen, CheckCircle, ArrowLeft, User, Award, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { getFormation, enrollFormation } from '../services/formationService';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Progress } from '../components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { toast } from 'sonner';
+import type { Course } from '../types';
+import axios from 'axios';
 
 export const CourseDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentUser, courses, userProgress, setUserProgress, modules, quizzes } = useApp();
-  const [isEnrolled, setIsEnrolled] = useState(false);
+  const { currentUser } = useAuth();
 
-  const course = courses.find(c => c.id === id);
-  const courseModules = modules.filter(m => m.courseId === id).sort((a, b) => a.order - b.order);
-  const courseQuizzes = quizzes.filter(q => 
-    courseModules.some(m => m.id === q.moduleId)
-  );
+  const [course, setCourse]       = useState<(Course & { isEnrolled?: boolean }) | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
-    if (currentUser && course) {
-      const enrolled = !!userProgress[`${currentUser.id}-${course.id}`];
-      setIsEnrolled(enrolled);
+    if (!id) return;
+    setLoading(true);
+    getFormation(id)
+      .then(c => setCourse(c as Course & { isEnrolled?: boolean }))
+      .catch(() => toast.error('Formation introuvable'))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const handleEnroll = async () => {
+    if (!currentUser) { navigate('/login'); return; }
+    if (currentUser.role !== 'learner') {
+      toast.error('Seuls les apprenants peuvent s\'inscrire'); return;
     }
-  }, [currentUser, course, userProgress]);
+    setEnrolling(true);
+    try {
+      await enrollFormation(id!);
+      setCourse(prev => prev ? { ...prev, isEnrolled: true } : prev);
+      toast.success('✅ Inscription réussie ! Vous pouvez commencer la formation.');
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Impossible de s\'inscrire');
+      } else {
+        toast.error('Une erreur est survenue');
+      }
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const levelColors: Record<string, string> = {
+    'Débutant':     'bg-green-100 text-green-700',
+    'Intermédiaire': 'bg-yellow-100 text-yellow-700',
+    'Avancé':       'bg-red-100 text-red-700',
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
   if (!course) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-2xl font-bold text-gray-800 mb-4">Formation non trouvée</p>
-          <Button onClick={() => navigate('/app/courses')}>
-            Retour aux formations
-          </Button>
+          <Button onClick={() => navigate('/app/courses')}>Retour aux formations</Button>
         </div>
       </div>
     );
   }
 
-  const progress = currentUser 
-    ? userProgress[`${currentUser.id}-${course.id}`] 
-    : undefined;
-
-  const handleEnroll = () => {
-    if (!currentUser) {
-      toast.error('Veuillez vous connecter pour vous inscrire');
-      navigate('/login');
-      return;
-    }
-
-    // Vérifier que l'utilisateur est un apprenant
-    if (currentUser.role !== 'learner') {
-      toast.error('Seuls les apprenants peuvent s\'inscrire aux formations');
-      return;
-    }
-
-    const newProgress = {
-      userId: currentUser.id,
-      courseId: course.id,
-      moduleProgress: {},
-      overallProgress: 0,
-      completedContents: [],
-      quizAttempts: [],
-      badges: [{
-        id: 'b-' + Date.now(),
-        name: 'Nouveau Départ',
-        description: 'Inscription à une nouvelle formation',
-        icon: '���',
-        earnedAt: new Date().toISOString(),
-      }],
-      lastActivity: new Date().toISOString(),
-    };
-
-    setUserProgress({
-      ...userProgress,
-      [`${currentUser.id}-${course.id}`]: newProgress,
-    });
-
-    setIsEnrolled(true);
-    toast.success('✅ Inscription réussie ! Badge "Nouveau Départ" obtenu !');
-  };
-
-  const levelColors = {
-    'Débutant': 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
-    'Intermédiaire': 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
-    'Avancé': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
-  };
-
-  // Vérifier si l'utilisateur peut s'inscrire (seulement les apprenants)
-  const canEnroll = currentUser?.role === 'learner';
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Back Button */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-        >
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/app/courses')}
-            className="gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Retour aux formations
-          </Button>
-        </motion.div>
+      <div className="max-w-5xl mx-auto p-6 space-y-6">
 
-        {/* Course Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative rounded-2xl overflow-hidden"
-        >
-          <div className="absolute inset-0">
-            <img 
-              src={course.thumbnail} 
-              alt={course.title}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-black/40" />
-          </div>
-          
-          <div className="relative p-8 md:p-12 text-white">
-            <Badge className={`${levelColors[course.level]} mb-4`}>
-              {course.level}
-            </Badge>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              {course.title}
-            </h1>
-            <p className="text-xl text-gray-200 mb-6 max-w-3xl">
-              {course.description}
-            </p>
+        <Button variant="ghost" onClick={() => navigate('/app/courses')} className="gap-2">
+          <ArrowLeft className="w-4 h-4" /> Retour aux formations
+        </Button>
 
-            <div className="flex flex-wrap gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                <span>{course.estimatedDuration} heures</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                <span>{courseModules.length} modules</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <BarChart className="w-5 h-5" />
-                <span>{course.category}</span>
-              </div>
-            </div>
-
-            {isEnrolled && progress && (
-              <div className="mt-6 bg-white/10 backdrop-blur-sm rounded-lg p-4 max-w-md">
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Votre progression</span>
-                  <span className="font-bold">{progress.overallProgress}%</span>
-                </div>
-                <Progress value={progress.overallProgress} className="h-2" />
+        {/* Hero */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="overflow-hidden">
+            {course.thumbnail && (
+              <div className="h-48 overflow-hidden">
+                <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
               </div>
             )}
+            <CardContent className="p-6 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="bg-blue-100 text-blue-700">{course.category}</Badge>
+                    <Badge className={levelColors[course.level] ?? ''}>{course.level}</Badge>
+                    {(course as any).isEnrolled && (
+                      <Badge className="bg-green-100 text-green-700">
+                        <CheckCircle className="w-3 h-3 mr-1" /> Inscrit
+                      </Badge>
+                    )}
+                  </div>
+                  <h1 className="text-3xl font-bold text-gray-900">{course.title}</h1>
+                  <p className="text-gray-600">{course.description}</p>
+                </div>
+              </div>
 
-            <div className="mt-8">
-              {isEnrolled ? (
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 gap-2"
-                >
-                  <Play className="w-5 h-5" />
-                  Continuer la formation
-                </Button>
-              ) : (
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Button
-                    size="lg"
-                    onClick={handleEnroll}
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 gap-2"
-                    disabled={!canEnroll}
-                  >
-                    <Award className="w-5 h-5" />
-                    S'inscrire maintenant
-                  </Button>
-                </motion.div>
+              {/* Infos rapides */}
+              <div className="flex flex-wrap gap-6 text-sm text-gray-600 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-blue-500" />
+                  <span>{course.estimatedDuration} heures</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-blue-500" />
+                  <span>{course.modules.length} module(s)</span>
+                </div>
+                {course.instructor && (
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-blue-500" />
+                    <span>{course.instructor.firstName} {course.instructor.lastName}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <BarChart className="w-4 h-4 text-blue-500" />
+                  <span>{course.level}</span>
+                </div>
+              </div>
+
+              {/* Prérequis */}
+              {course.prerequisites.length > 0 && (
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Prérequis :</p>
+                  <div className="flex flex-wrap gap-2">
+                    {course.prerequisites.map((p, i) => (
+                      <Badge key={i} variant="outline">{p}</Badge>
+                    ))}
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
-        </motion.div>
 
-        {/* Course Content */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Tabs defaultValue="modules" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 max-w-md">
-              <TabsTrigger value="modules">Modules</TabsTrigger>
-              <TabsTrigger value="about">À propos</TabsTrigger>
-              <TabsTrigger value="instructor">Formateur</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="modules" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Contenu de la formation</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {courseModules.length > 0 ? (
-                    <Accordion type="single" collapsible className="w-full">
-                      {courseModules.map((module, index) => {
-                        const moduleProgress = progress?.moduleProgress[module.id] || 0;
-                        const isCompleted = moduleProgress === 100;
-                        const isLocked = !isEnrolled && index > 0;
-
-                        return (
-                          <AccordionItem key={module.id} value={module.id}>
-                            <AccordionTrigger className="hover:no-underline">
-                              <div className="flex items-center gap-4 w-full">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                  isCompleted 
-                                    ? 'bg-green-100 text-green-600' 
-                                    : isLocked 
-                                    ? 'bg-gray-100 text-gray-400'
-                                    : 'bg-blue-100 text-blue-600'
-                                }`}>
-                                  {isCompleted ? (
-                                    <CheckCircle className="w-5 h-5" />
-                                  ) : isLocked ? (
-                                    <Lock className="w-5 h-5" />
-                                  ) : (
-                                    <span className="font-bold">{index + 1}</span>
-                                  )}
-                                </div>
-                                <div className="flex-1 text-left">
-                                  <p className="font-semibold">{module.title}</p>
-                                  <p className="text-sm text-gray-500">{module.duration} min</p>
-                                </div>
-                                {isEnrolled && (
-                                  <Badge variant={isCompleted ? 'default' : 'outline'}>
-                                    {moduleProgress}%
-                                  </Badge>
-                                )}
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <div className="pl-14 space-y-3">
-                                <p className="text-gray-600">{module.description}</p>
-                                
-                                {module.contents.length > 0 && (
-                                  <div className="space-y-2">
-                                    <p className="font-semibold text-sm">Contenus :</p>
-                                    {module.contents.map(content => (
-                                      <div key={content.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                        <Play className="w-4 h-4 text-blue-600" />
-                                        <div className="flex-1">
-                                          <p className="text-sm font-medium">{content.title}</p>
-                                          <p className="text-xs text-gray-500">{content.duration} min • {content.type}</p>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {courseQuizzes.find(q => q.moduleId === module.id) && (
-                                  <div className="p-3 bg-purple-50 rounded-lg">
-                                    <p className="text-sm font-semibold text-purple-900 mb-1">
-                                      📝 Quiz disponible
-                                    </p>
-                                    <p className="text-xs text-purple-700 mb-2">
-                                      Testez vos connaissances à la fin de ce module
-                                    </p>
-                                    {isEnrolled && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="w-full"
-                                        onClick={() => {
-                                          const quiz = courseQuizzes.find(q => q.moduleId === module.id);
-                                          if (quiz) {
-                                            navigate(`/app/courses/${course.id}/quiz/${quiz.id}`);
-                                          }
-                                        }}
-                                      >
-                                        Commencer le quiz
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        );
-                      })}
-                    </Accordion>
+              {/* Bouton inscription */}
+              {currentUser?.role === 'learner' && (
+                <div className="border-t pt-4">
+                  {(course as any).isEnrolled ? (
+                    <div className="flex items-center gap-2 text-green-600 font-medium">
+                      <CheckCircle className="w-5 h-5" /> Vous êtes inscrit à cette formation
+                    </div>
                   ) : (
-                    <p className="text-gray-500 text-center py-8">
-                      Les modules seront bientôt disponibles
-                    </p>
+                    <Button onClick={handleEnroll} disabled={enrolling} className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600">
+                      {enrolling ? <><Loader2 className="w-4 h-4 animate-spin" /> Inscription...</> : <><Award className="w-4 h-4" /> S'inscrire à cette formation</>}
+                    </Button>
                   )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="about">
-              <Card>
-                <CardHeader>
-                  <CardTitle>À propos de cette formation</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <h3 className="font-semibold mb-2">Description</h3>
-                    <p className="text-gray-600">{course.description}</p>
-                  </div>
-
-                  {course.prerequisites.length > 0 && (
-                    <div>
-                      <h3 className="font-semibold mb-2">Prérequis</h3>
-                      <ul className="list-disc list-inside space-y-1 text-gray-600">
-                        {course.prerequisites.map((prereq, index) => (
-                          <li key={index}>{prereq}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <div>
-                    <h3 className="font-semibold mb-2">Informations</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Catégorie:</span>
-                        <p className="font-medium">{course.category}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Niveau:</span>
-                        <p className="font-medium">{course.level}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Durée estimée:</span>
-                        <p className="font-medium">{course.estimatedDuration} heures</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Modules:</span>
-                        <p className="font-medium">{courseModules.length}</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="instructor">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Votre formateur</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
-                      MM
-                    </div>
-                    <div>
-                      <p className="font-semibold text-lg">Marie Martin</p>
-                      <p className="text-gray-500">Formatrice experte</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </motion.div>
+
+        {/* Modules */}
+        {course.modules.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-blue-600" /> Contenu de la formation
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Accordion type="multiple" className="space-y-2">
+                  {course.modules.sort((a, b) => a.order - b.order).map((module, i) => (
+                    <AccordionItem key={module.id} value={module.id} className="border rounded-lg px-4">
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex items-center gap-3 text-left">
+                          <span className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                            {i + 1}
+                          </span>
+                          <div>
+                            <p className="font-medium">{module.title}</p>
+                            <p className="text-xs text-gray-500">{module.duration} min</p>
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <p className="text-gray-600 text-sm pl-11 pb-2">
+                          {module.description || 'Aucune description disponible.'}
+                        </p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </div>
   );

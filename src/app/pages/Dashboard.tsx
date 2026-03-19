@@ -144,7 +144,7 @@ export const Dashboard: React.FC = () => {
         </motion.div>
 
         {/* Instructor Request Status - Visible uniquement si une demande existe */}
-        {userInstructorRequest && (
+        {userInstructorRequest && currentUser.role === 'learner' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

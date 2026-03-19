@@ -9,7 +9,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
-import loginImage from '../../assets/09efca758bab23262c0ec1f67a245e59c64dfb6d.png';
+import loginImage from '@/assets/09efca758bab23262c0ec1f67a245e59c64dfb6d.png';
 import axios from 'axios';
 
 export const Login: React.FC = () => {
@@ -160,8 +160,8 @@ export const Login: React.FC = () => {
   placeholder="Saisir votre mot de passe"
   value={password}
   onChange={(e) => setPassword(e.target.value)}
-  autoComplete="new-password"   // ← ajoute cette ligne
-  className="pl-10 pr-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 focus:border-blue-600 focus:ring-blue-600/20"
+  autoComplete="new-password"   
+  className="pl-10 pr-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 focus:border-blue-600 focus:ring-blue-600/20 [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
   required
 />
                   <button

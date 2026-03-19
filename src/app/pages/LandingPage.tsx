@@ -11,7 +11,6 @@ import {
   ArrowRight,
   CheckCircle,
 } from "lucide-react";
-import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 
 export const LandingPage: React.FC = () => {
   const features = [
@@ -46,45 +45,37 @@ export const LandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 overflow-hidden">
+
+      {/* ✅ Masque les boutons natifs du navigateur (PiP, plein écran) sur la vidéo */}
+      <style>{`
+        video::-webkit-media-controls,
+        video::-webkit-media-controls-enclosure,
+        video::-webkit-media-controls-overlay-play-button,
+        video::-webkit-media-controls-panel {
+          display: none !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+      `}</style>
+
       {/* Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute w-96 h-96 bg-purple-500/20 rounded-full blur-3xl"
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -100, 0],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear",
-          }}
+          animate={{ x: [0, 100, 0], y: [0, -100, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
           style={{ top: "10%", left: "10%" }}
         />
         <motion.div
           className="absolute w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"
-          animate={{
-            x: [0, -100, 0],
-            y: [0, 100, 0],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "linear",
-          }}
+          animate={{ x: [0, -100, 0], y: [0, 100, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
           style={{ bottom: "10%", right: "10%" }}
         />
         <motion.div
           className="absolute w-96 h-96 bg-pink-500/20 rounded-full blur-3xl"
-          animate={{
-            x: [0, -50, 0],
-            y: [0, 50, 0],
-          }}
-          transition={{
-            duration: 18,
-            repeat: Infinity,
-            ease: "linear",
-          }}
+          animate={{ x: [0, -50, 0], y: [0, 50, 0] }}
+          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
           style={{ top: "50%", left: "50%" }}
         />
       </div>
@@ -93,6 +84,7 @@ export const LandingPage: React.FC = () => {
       <div className="relative">
         <div className="container mx-auto px-4 py-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
+
             {/* Left Content */}
             <motion.div
               initial={{ opacity: 0, x: -50 }}
@@ -172,82 +164,91 @@ export const LandingPage: React.FC = () => {
               </motion.div>
             </motion.div>
 
-            {/* Right Content - Hero Image */}
+            {/* ✅ Right Content - Hero Video avec cartes repositionnées */}
             <motion.div
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
               className="relative"
+              style={{ padding: "2.5rem 1rem" }} /* espace pour les cartes qui débordent */
             >
               <motion.div
-                animate={{
-                  y: [0, -20, 0],
-                }}
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
+                animate={{ y: [0, -20, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                 className="relative z-10"
               >
+
+                {/* ✅ Carte Certification — AU-DESSUS de la vidéo, côté gauche */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1 }}
+                  style={{ position: "absolute", top: "-4rem", left: "0.5rem", zIndex: 20 }}
+                >
+                  <motion.div
+                    animate={{ y: [0, 8, 0] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                    className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 shadow-xl"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                        <Award className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-white font-semibold">Certification</div>
+                        <div className="text-gray-300 text-sm">+150 cette semaine</div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+
+                {/* ✅ Vidéo — sans contrôles natifs */}
                 <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-purple-500/30">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/20 to-blue-500/20 z-10"></div>
-                  <ImageWithFallback
-                    src="https://images.unsplash.com/photo-1771408427146-09be9a1d4535?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxvbmxpbmUlMjBsZWFybmluZyUyMHN0dWRlbnQlMjBsYXB0b3B8ZW58MXx8fHwxNzcyNzM1NDQ0fDA&ixlib=rb-4.1.0&q=80&w=1080"
-                    alt="Learning Platform"
-                    className="w-full h-auto"
+                  {/* Overlay intercepte les clics pour bloquer les contrôles */}
+                  <div
+                    className="absolute inset-0 bg-gradient-to-tr from-purple-500/20 to-blue-500/20 z-10"
+                    style={{ pointerEvents: "all", cursor: "default" }}
                   />
+                  <video
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    disablePictureInPicture
+                    className="w-full h-auto block"
+                    style={{ objectFit: "cover" }}
+                  >
+                    <source src="/videos/hero-video.mp4" type="video/mp4" />
+                  </video>
                 </div>
-              </motion.div>
 
-              {/* Floating Card 1 */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1 }}
-                className="absolute top-10 -left-10 z-20"
-              >
+                {/* ✅ Carte 95% Réussite — EN-DESSOUS de la vidéo, côté droit */}
                 <motion.div
-                  animate={{ y: [0, 10, 0] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 shadow-xl"
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1.2 }}
+                  style={{ position: "absolute", bottom: "-5.5rem", right: "0.5rem", zIndex: 20 }}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                      <Award className="w-6 h-6 text-white" />
+                  <motion.div
+                    animate={{ y: [0, -8, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, delay: 1 }}
+                    className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 shadow-xl"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                        <TrendingUp className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-white font-semibold">95% Réussite</div>
+                        <div className="text-gray-300 text-sm">Taux de complétion</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-white font-semibold">Certification</div>
-                      <div className="text-gray-300 text-sm">+150 cette semaine</div>
-                    </div>
-                  </div>
+                  </motion.div>
                 </motion.div>
-              </motion.div>
 
-              {/* Floating Card 2 */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1.2 }}
-                className="absolute bottom-10 -right-10 z-20"
-              >
-                <motion.div
-                  animate={{ y: [0, -10, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, delay: 1 }}
-                  className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 shadow-xl"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <div className="text-white font-semibold">95% Réussite</div>
-                      <div className="text-gray-300 text-sm">Taux de complétion</div>
-                    </div>
-                  </div>
-                </motion.div>
               </motion.div>
             </motion.div>
+
           </div>
         </div>
       </div>
@@ -351,15 +352,8 @@ export const LandingPage: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10"></div>
             <div className="relative z-10 text-center max-w-3xl mx-auto">
               <motion.div
-                animate={{
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 180, 360],
-                }}
-                transition={{
-                  duration: 20,
-                  repeat: Infinity,
-                  ease: "linear",
-                }}
+                animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 360] }}
+                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
                 className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center"
               >
                 <GraduationCap className="w-10 h-10 text-white" />
