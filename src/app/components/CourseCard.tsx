@@ -1,11 +1,11 @@
-import React from 'react';
-import { motion } from 'motion/react';
-import { Clock, BarChart, BookOpen, User, Edit, Trash2 } from 'lucide-react';
-import { Course } from '../types';
-import { Card, CardContent, CardFooter } from './ui/card';
-import { Badge } from './ui/badge';
-import { Progress } from './ui/progress';
-import { Button } from './ui/button';
+import React from "react";
+import { motion } from "motion/react";
+import { Clock, BarChart, BookOpen, User, Edit, Trash2 } from "lucide-react";
+import { Course } from "../types";
+import { Card, CardContent, CardFooter } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Progress } from "./ui/progress";
+import { Button } from "./ui/button";
 
 interface CourseCardProps {
   course: Course;
@@ -17,19 +17,22 @@ interface CourseCardProps {
   showAdminActions?: boolean;
 }
 
-export const CourseCard: React.FC<CourseCardProps> = ({ 
-  course, 
+export const CourseCard: React.FC<CourseCardProps> = ({
+  course,
   progress,
   onEnroll,
   onView,
   onEdit,
   onDelete,
-  showAdminActions = false
+  showAdminActions = false,
 }) => {
   const levelColors = {
-    'Débutant': 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
-    'Intermédiaire': 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
-    'Avancé': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
+    Débutant:
+      "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
+    Intermédiaire:
+      "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800",
+    Avancé:
+      "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
   };
 
   return (
@@ -48,12 +51,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             className="w-full h-48 object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <Badge 
+          <Badge
             className={`absolute top-3 right-3 ${levelColors[course.level]}`}
           >
             {course.level}
           </Badge>
-          
+
           {/* Admin Actions Buttons */}
           {showAdminActions && (
             <div className="absolute top-3 left-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -85,7 +88,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               )}
             </div>
           )}
-          
+
           {progress !== undefined && (
             <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
               <div className="flex items-center justify-between text-white text-sm mb-1">
@@ -117,6 +120,14 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               <BookOpen className="w-4 h-4" />
               <span>{course.modules?.length || 0} modules</span>
             </div>
+            {course.instructor && (
+              <div className="flex items-center gap-1">
+                <User className="w-4 h-4" />
+                <span>
+                  {course.instructor.firstName} {course.instructor.lastName}
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
 
@@ -131,7 +142,11 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                 Continuer le cours
               </Button>
             ) : (
-              <Button onClick={onEnroll || onView} variant="outline" className="w-full">
+              <Button
+                onClick={onEnroll || onView}
+                variant="outline"
+                className="w-full"
+              >
                 Voir le cours
               </Button>
             )}

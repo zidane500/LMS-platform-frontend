@@ -3,17 +3,18 @@
 // Ce fichier crée une instance Axios configurée pour communiquer
 // avec notre backend Laravel.
 
-import axios from 'axios';
+import axios from "axios";
 
 // L'URL de base du backend Laravel (port 8000 par défaut)
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = "http://localhost:8000/api";
 
 // Création de l'instance Axios
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    Accept: "application/json",
+    // Content-Type retiré : Axios le gère automatiquement
+    // (application/json pour les objets, multipart pour FormData)
   },
 });
 
@@ -22,13 +23,13 @@ const api = axios.create({
 // d'authentification s'il existe dans le localStorage
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem("auth_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // ─── INTERCEPTEUR DE RÉPONSE ─────────────────────────────
@@ -38,12 +39,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      window.location.href = '/login';
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      window.location.href = "/login";
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

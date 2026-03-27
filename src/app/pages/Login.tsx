@@ -199,7 +199,7 @@ export const Login: React.FC = () => {
               >
                 <Button
                   type="submit"
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
+                  className="w-48 h-11 mx-auto block bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
                   disabled={loading}
                 >
                   {loading ? (
@@ -224,7 +224,7 @@ export const Login: React.FC = () => {
                  <Link to="/register" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-semibold transition-colors">
                     <Button
                     type="submit"
-                    className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
+                    className="w-48 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
                     disabled={loading}
                   >
                     S'inscrire

@@ -13,12 +13,14 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  dateOfBirth: string;
-  phone: string;
-  preferredLanguage: string;
-  targetDomains: string[];
-  technologies: string[];
-  role: UserRole;
+
+  dateOfBirth?: string;
+  phone?: string;
+  preferredLanguage?: string;
+  targetDomains?: string[];
+  technologies?: string[];
+  role?: UserRole;
+
   avatar?: string;
 }
 
@@ -49,6 +51,10 @@ export interface Course {
   instructor?: User;
   modules: Module[];
   createdAt: string;
+
+  enrolledCount?: number;
+  rating?: number;
+  quizzes?: Quiz[];
 }
 
 export interface Module {

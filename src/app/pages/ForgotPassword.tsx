@@ -2,24 +2,27 @@
 //
 // Page "Mot de passe oublié" - envoie un email de réinitialisation
 
-import React, { useState } from 'react';
-import { Link } from 'react-router';
-import { motion } from 'motion/react';
-import { GraduationCap, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+import React, { useState } from "react";
+import { Link } from "react-router";
+import { motion } from "motion/react";
+import { GraduationCap, Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import {
-  Card, CardContent, CardDescription,
-  CardHeader, CardTitle,
-} from '../components/ui/card';
-import { toast } from 'sonner';
-import axios from 'axios';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { toast } from "sonner";
+import axios from "axios";
 
 export const ForgotPassword: React.FC = () => {
   const { forgotPassword } = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   // "sent" devient true quand l'email a été envoyé avec succès
   const [sent, setSent] = useState(false);
@@ -32,16 +35,16 @@ export const ForgotPassword: React.FC = () => {
       // Appel API : POST /api/auth/forgot-password
       await forgotPassword(email);
       setSent(true); // Affiche le message de succès
-      toast.success('Email envoyé ! Vérifiez votre boîte mail.');
+      toast.success("Email envoyé ! Vérifiez votre boîte mail.");
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         const message =
           error.response?.data?.errors?.email?.[0] ||
           error.response?.data?.message ||
-          'Email introuvable dans notre système.';
+          "Email introuvable dans notre système.";
         toast.error(message);
       } else {
-        toast.error('Une erreur est survenue. Réessayez.');
+        toast.error("Une erreur est survenue. Réessayez.");
       }
     } finally {
       setLoading(false);
@@ -54,12 +57,17 @@ export const ForgotPassword: React.FC = () => {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           animate={{ y: [0, -30, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="absolute -top-32 -right-32 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"
         />
         <motion.div
           animate={{ y: [0, 40, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1,
+          }}
           className="absolute -bottom-32 -left-32 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"
         />
       </div>
@@ -82,8 +90,8 @@ export const ForgotPassword: React.FC = () => {
             </CardTitle>
             <CardDescription>
               {sent
-                ? 'Vérifiez votre boîte email'
-                : 'Entrez votre email pour recevoir un lien de réinitialisation'}
+                ? "Vérifiez votre boîte email"
+                : "Entrez votre email pour recevoir un lien de réinitialisation"}
             </CardDescription>
           </CardHeader>
 
@@ -118,7 +126,7 @@ export const ForgotPassword: React.FC = () => {
                       Envoi...
                     </div>
                   ) : (
-                    'Envoyer le lien'
+                    "Envoyer le lien"
                   )}
                 </Button>
               </form>
@@ -136,11 +144,12 @@ export const ForgotPassword: React.FC = () => {
                   Un email a été envoyé à <strong>{email}</strong>.
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Cliquez sur le lien dans l'email pour réinitialiser votre mot de passe.
+                  Cliquez sur le lien dans l'email pour réinitialiser votre mot
+                  de passe.
                 </p>
                 {/* NOTE DÉVELOPPEMENT : si MAIL_MAILER=log, l'email est dans storage/logs/laravel.log */}
                 <p className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                  💡 En mode développement, l'email est enregistré dans{' '}
+                  💡 En mode développement, l'email est enregistré dans{" "}
                   <code>storage/logs/laravel.log</code>
                 </p>
               </motion.div>
