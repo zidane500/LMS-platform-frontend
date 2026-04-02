@@ -1,422 +1,622 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router';
-import { motion } from 'motion/react';
-import { ArrowLeft, Plus, X, Trash2, Edit2, Save, CheckCircle2 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Badge } from '../components/ui/badge';
-import { toast } from 'sonner';
-import type { Quiz, Question, QuestionType } from '../types';
+// src/app/pages/EditQuiz.tsx — US 4.1 & 4.3 : Créer / Modifier un quiz
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  ArrowLeft,
+  Plus,
+  X,
+  Trash2,
+  CheckCircle,
+  Loader2,
+  ToggleLeft,
+  AlignLeft,
+  List,
+} from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { getQuiz, createQuiz, updateQuiz } from "../services/quizService";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Textarea } from "../components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { toast } from "sonner";
+import axios from "axios";
+import type { QuestionType } from "../services/quizService";
+
+interface ChoixForm {
+  texte: string;
+  est_correct: boolean;
+}
+interface QuestionForm {
+  texte: string;
+  type: QuestionType;
+  points: number;
+  correction_attendue: string;
+  choix: ChoixForm[];
+}
+
+const defaultQuestion = (): QuestionForm => ({
+  texte: "",
+  type: "qcm",
+  points: 1,
+  correction_attendue: "",
+  choix: [
+    { texte: "", est_correct: false },
+    { texte: "", est_correct: false },
+  ],
+});
+
+const TYPE_ICONS: Record<QuestionType, React.ReactNode> = {
+  qcm: <List className="w-4 h-4" />,
+  vrai_faux: <ToggleLeft className="w-4 h-4" />,
+  texte_libre: <AlignLeft className="w-4 h-4" />,
+};
+const TYPE_LABELS: Record<QuestionType, string> = {
+  qcm: "QCM (Choix multiple)",
+  vrai_faux: "Vrai / Faux",
+  texte_libre: "Texte libre",
+};
 
 export const EditQuiz: React.FC = () => {
-  const { courseId, moduleId, quizId } = useParams<{ courseId: string; moduleId: string; quizId?: string }>();
   const navigate = useNavigate();
-  const { currentUser, courses, modules, quizzes, setQuizzes } = useApp();
-  
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    duration: 15,
-    passingScore: 70,
-    maxAttempts: 3,
-  });
+  const { courseId, moduleId, quizId } = useParams<{
+    courseId: string;
+    moduleId: string;
+    quizId?: string;
+  }>();
+  const { currentUser } = useAuth();
+  const isEditing = !!quizId && quizId !== "create";
 
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(isEditing);
+  const [saving, setSaving] = useState(false);
+  const [existingQuizId, setExistingQuizId] = useState<string | null>(null);
 
-  // New Question Form
-  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
-  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
-  
-  const [qType, setQType] = useState<QuestionType>('mcq');
-  const [qText, setQText] = useState('');
-  const [qOptions, setQOptions] = useState<string[]>(['', '']);
-  const [qCorrect, setQCorrect] = useState<string>('');
-  const [qFeedback, setQFeedback] = useState('');
+  const [titre, setTitre] = useState("");
+  const [description, setDescription] = useState("");
+  const [seuil, setSeuil] = useState(70);
+  const [duree, setDuree] = useState<number | "">("");
+  const [nbTentatives, setNbTentatives] = useState(3);
+  const [questions, setQuestions] = useState<QuestionForm[]>([
+    defaultQuestion(),
+  ]);
 
-  const course = courses.find(c => c.id === courseId);
-  const module = modules.find(m => m.id === moduleId);
-
+  // Charger quiz existant si modification
   useEffect(() => {
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'instructor')) {
-      navigate('/app');
-      return;
-    }
+    if (!isEditing || !courseId || !moduleId) return;
+    setLoading(true);
+    getQuiz(courseId, moduleId)
+      .then((q) => {
+        setExistingQuizId(q.id);
+        setTitre(q.titre);
+        setDescription(q.description ?? "");
+        setSeuil(q.seuil_reussite);
+        setDuree(q.duree_minutes ?? "");
+        setNbTentatives(q.nb_tentatives_max);
+        setQuestions(
+          q.questions.map((qu) => ({
+            texte: qu.texte,
+            type: qu.type,
+            points: qu.points,
+            correction_attendue: qu.correction_attendue ?? "",
+            choix: qu.choix.map((c) => ({
+              texte: c.texte,
+              est_correct: c.est_correct ?? false,
+            })),
+          })),
+        );
+      })
+      .catch(() => toast.error("Quiz introuvable"))
+      .finally(() => setLoading(false));
+  }, [isEditing, courseId, moduleId]);
 
-    if (!course || !module) {
-      toast.error('Cours ou module introuvable');
-      navigate('/app/courses');
-      return;
-    }
+  if (currentUser?.role !== "instructor" && currentUser?.role !== "admin") {
+    navigate("/app");
+    return null;
+  }
 
-    if (quizId) {
-      const existing = quizzes.find(q => q.id === quizId);
-      if (existing) {
-        setFormData({
-          title: existing.title,
-          description: existing.description,
-          duration: existing.duration,
-          passingScore: existing.passingScore,
-          maxAttempts: existing.maxAttempts,
-        });
-        setQuestions(existing.questions);
-      } else {
-        toast.error('Quiz introuvable');
-        navigate(`/app/courses/edit/${courseId}`);
-      }
-    } else {
-      // Default new quiz
-      setFormData(prev => ({ ...prev, title: `Quiz : ${module.title}` }));
-    }
-  }, [courseId, moduleId, quizId, courses, modules, quizzes, currentUser, navigate]);
+  // ── Gestion des questions ─────────────────────────────────
+  const addQuestion = () =>
+    setQuestions((prev) => [...prev, defaultQuestion()]);
+  const removeQuestion = (i: number) =>
+    setQuestions((prev) => prev.filter((_, j) => j !== i));
+  const updateQuestion = (i: number, field: keyof QuestionForm, val: any) =>
+    setQuestions((prev) =>
+      prev.map((q, j) => (j === i ? { ...q, [field]: val } : q)),
+    );
 
-  const handleChange = (field: string, value: string | number) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const setQuestionType = (i: number, type: QuestionType) => {
+    const choix: ChoixForm[] =
+      type === "vrai_faux"
+        ? [
+            { texte: "Vrai", est_correct: true },
+            { texte: "Faux", est_correct: false },
+          ]
+        : type === "texte_libre"
+          ? []
+          : [
+              { texte: "", est_correct: false },
+              { texte: "", est_correct: false },
+            ];
+    setQuestions((prev) =>
+      prev.map((q, j) => (j === i ? { ...q, type, choix } : q)),
+    );
   };
 
-  const handleSaveQuiz = async (e: React.FormEvent) => {
+  const addChoix = (qi: number) =>
+    setQuestions((prev) =>
+      prev.map((q, j) =>
+        j === qi
+          ? { ...q, choix: [...q.choix, { texte: "", est_correct: false }] }
+          : q,
+      ),
+    );
+  const removeChoix = (qi: number, ci: number) =>
+    setQuestions((prev) =>
+      prev.map((q, j) =>
+        j === qi ? { ...q, choix: q.choix.filter((_, k) => k !== ci) } : q,
+      ),
+    );
+  const updateChoix = (
+    qi: number,
+    ci: number,
+    field: keyof ChoixForm,
+    val: any,
+  ) =>
+    setQuestions((prev) =>
+      prev.map((q, j) =>
+        j === qi
+          ? {
+              ...q,
+              choix: q.choix.map((c, k) =>
+                k === ci ? { ...c, [field]: val } : c,
+              ),
+            }
+          : q,
+      ),
+    );
+
+  // QCM : un seul bon choix à la fois
+  const setCorrectChoix = (qi: number, ci: number) =>
+    setQuestions((prev) =>
+      prev.map((q, j) =>
+        j === qi
+          ? {
+              ...q,
+              choix: q.choix.map((c, k) => ({ ...c, est_correct: k === ci })),
+            }
+          : q,
+      ),
+    );
+
+  // ── Soumission ────────────────────────────────────────────
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (questions.length === 0) {
-      toast.error('Veuillez ajouter au moins une question au quiz');
+    if (!titre.trim()) {
+      toast.error("Le titre est obligatoire");
       return;
     }
-    setLoading(true);
+    if (questions.length === 0) {
+      toast.error("Ajoutez au moins une question");
+      return;
+    }
 
-    setTimeout(() => {
-      const finalQuizId = quizId || `q-${Date.now()}`;
-      const updatedQuiz: Quiz = {
-        id: finalQuizId,
-        moduleId: moduleId!,
-        ...formData,
-        // BUG FIX : on corrige le quizId de chaque question (qui valait 'temp' lors de la création)
-        questions: questions.map(q => ({ ...q, quizId: finalQuizId })),
+    for (const [i, q] of questions.entries()) {
+      if (!q.texte.trim()) {
+        toast.error(`Question ${i + 1} : texte manquant`);
+        return;
+      }
+      if ((q.type === "qcm" || q.type === "vrai_faux") && q.choix.length < 2) {
+        toast.error(`Question ${i + 1} : minimum 2 choix`);
+        return;
+      }
+      if (q.type === "texte_libre" && !q.correction_attendue.trim()) {
+        toast.error(
+          `Question ${i + 1} : la correction attendue est obligatoire`,
+        );
+        return;
+      }
+      if (
+        (q.type === "qcm" || q.type === "vrai_faux") &&
+        !q.choix.some((c) => c.est_correct)
+      ) {
+        toast.error(`Question ${i + 1} : marquez au moins un choix correct`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        titre,
+        description: description || undefined,
+        seuil_reussite: seuil,
+        duree_minutes: duree !== "" ? duree : undefined,
+        nb_tentatives_max: nbTentatives,
+        questions: questions.map((q, i) => ({
+          texte: q.texte,
+          type: q.type,
+          points: q.points,
+          ordre: i + 1,
+          correction_attendue:
+            q.type === "texte_libre"
+              ? q.correction_attendue || undefined
+              : undefined,
+          choix: q.choix.map((c, j) => ({
+            texte: c.texte,
+            est_correct: c.est_correct,
+            ordre: j + 1,
+          })),
+        })),
       };
 
-      if (quizId) {
-        setQuizzes(quizzes.map(q => q.id === quizId ? updatedQuiz : q));
-        toast.success('Quiz mis à jour avec succès');
+      if (isEditing && existingQuizId) {
+        await updateQuiz(courseId!, moduleId!, existingQuizId, payload);
+        toast.success("Quiz mis à jour !");
       } else {
-        setQuizzes([...quizzes, updatedQuiz]);
-        toast.success('Quiz créé avec succès');
+        await createQuiz(courseId!, moduleId!, payload);
+        toast.success("Quiz créé !");
       }
-      
       navigate(`/app/courses/edit/${courseId}`);
-      setLoading(false);
-    }, 800);
-  };
-
-  // Question Management Functions
-  const resetQuestionForm = () => {
-    setQType('mcq');
-    setQText('');
-    setQOptions(['', '']);
-    setQCorrect('');
-    setQFeedback('');
-    setIsAddingQuestion(false);
-    setEditingQuestionId(null);
-  };
-
-  const editQuestion = (q: Question) => {
-    setQType(q.type);
-    setQText(q.question);
-    setQOptions(q.options || ['', '']);
-    setQCorrect(typeof q.correctAnswer === 'string' ? q.correctAnswer : q.correctAnswer[0] || '');
-    setQFeedback(q.feedback || '');
-    setEditingQuestionId(q.id);
-    setIsAddingQuestion(true);
-  };
-
-  const removeQuestion = (id: string) => {
-    setQuestions(questions.filter(q => q.id !== id));
-  };
-
-  const saveQuestion = () => {
-    if (!qText.trim()) {
-      toast.error('La question est obligatoire');
-      return;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        toast.error(
+          error.response?.data?.message || "Erreur lors de la sauvegarde",
+        );
+      } else {
+        toast.error("Une erreur est survenue");
+      }
+    } finally {
+      setSaving(false);
     }
-
-    if (qType === 'mcq') {
-      const validOptions = qOptions.filter(o => o.trim());
-      if (validOptions.length < 2) {
-        toast.error('Un QCM nécessite au moins 2 options valides');
-        return;
-      }
-      if (!qCorrect || !validOptions.includes(qCorrect)) {
-        toast.error('Veuillez sélectionner la réponse correcte parmi les options');
-        return;
-      }
-    } else if (qType === 'true-false') {
-      if (!qCorrect) {
-        toast.error('Veuillez indiquer si c\'est vrai ou faux');
-        return;
-      }
-    } else if (qType === 'text') {
-      if (!qCorrect.trim()) {
-        toast.error('La réponse correcte attendue est obligatoire');
-        return;
-      }
-    }
-
-    const newQuestion: Question = {
-      id: editingQuestionId || `qst-${Date.now()}`,
-      quizId: quizId || 'temp',
-      type: qType,
-      question: qText,
-      options: qType === 'mcq' ? qOptions.filter(o => o.trim()) : qType === 'true-false' ? ['Vrai', 'Faux'] : undefined,
-      correctAnswer: qCorrect,
-      feedback: qFeedback,
-    };
-
-    if (editingQuestionId) {
-      setQuestions(questions.map(q => q.id === editingQuestionId ? newQuestion : q));
-    } else {
-      setQuestions([...questions, newQuestion]);
-    }
-    
-    resetQuestionForm();
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-slate-950 dark:to-blue-950/30 pb-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50/30 dark:from-slate-950 dark:to-purple-950/30">
       <div className="max-w-4xl mx-auto p-6 space-y-6">
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-          <Button variant="ghost" onClick={() => navigate(`/app/courses/edit/${courseId}`)} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Retour au module
-          </Button>
-        </motion.div>
+        <Button
+          variant="ghost"
+          onClick={() => navigate(`/app/courses/edit/${courseId}`)}
+          className="gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" /> Retour à la formation
+        </Button>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            {quizId ? 'Modifier le quiz' : 'Créer un quiz'}
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+            {isEditing ? "Modifier le quiz" : "Créer un quiz"}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Module : {module?.title}
+          <p className="text-gray-500 mt-1">
+            Les apprenants seront évalués sur ce module
           </p>
-        </motion.div>
+        </div>
 
-        <form onSubmit={handleSaveQuiz} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* ── Paramètres généraux ── */}
           <Card>
             <CardHeader>
               <CardTitle>Paramètres du quiz</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2 md:col-span-1">
-                <Label>Titre du quiz *</Label>
-                <Input required value={formData.title} onChange={(e) => handleChange('title', e.target.value)} />
-              </div>
-              
-              <div className="space-y-2 col-span-2 md:col-span-1">
-                <Label>Durée (minutes) *</Label>
-                <Input type="number" required min="1" value={formData.duration} onChange={(e) => handleChange('duration', parseInt(e.target.value) || 0)} />
-              </div>
-
-              <div className="space-y-2 col-span-2">
-                <Label>Description *</Label>
-                <Textarea required value={formData.description} onChange={(e) => handleChange('description', e.target.value)} rows={2} />
-              </div>
-
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Seuil de réussite (%) *</Label>
-                <Input type="number" required min="1" max="100" value={formData.passingScore} onChange={(e) => handleChange('passingScore', parseInt(e.target.value) || 0)} />
+                <Label>Titre *</Label>
+                <Input
+                  value={titre}
+                  onChange={(e) => setTitre(e.target.value)}
+                  placeholder="Ex: Quiz — Introduction aux bases"
+                  required
+                />
               </div>
-
               <div className="space-y-2">
-                <Label>Tentatives max *</Label>
-                <Input type="number" required min="1" max="10" value={formData.maxAttempts} onChange={(e) => handleChange('maxAttempts', parseInt(e.target.value) || 0)} />
+                <Label>Description (optionnel)</Label>
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Instructions pour les apprenants..."
+                  rows={2}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Seuil de réussite (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={seuil}
+                    onChange={(e) => setSeuil(parseInt(e.target.value) || 70)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Durée (minutes)</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={duree}
+                    onChange={(e) =>
+                      setDuree(
+                        e.target.value === "" ? "" : parseInt(e.target.value),
+                      )
+                    }
+                    placeholder="Sans limite"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nb. tentatives max</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={nbTentatives}
+                    onChange={(e) =>
+                      setNbTentatives(parseInt(e.target.value) || 3)
+                    }
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* List of existing questions */}
+          {/* ── Questions ── */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">Questions ({questions.length})</h2>
-              {!isAddingQuestion && (
-                <Button type="button" onClick={() => setIsAddingQuestion(true)} className="gap-2">
-                  <Plus className="w-4 h-4" /> Ajouter une question
-                </Button>
-              )}
+              <h2 className="text-xl font-bold">
+                Questions{" "}
+                <span className="text-gray-400 text-sm font-normal">
+                  ({questions.length})
+                </span>
+              </h2>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={addQuestion}
+              >
+                <Plus className="w-4 h-4" /> Ajouter une question
+              </Button>
             </div>
 
-            {questions.map((q, index) => (
-              <Card key={q.id} className="border-l-4 border-l-blue-500">
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <Badge className="mb-2" variant="outline">
-                        {q.type === 'mcq' ? 'QCM' : q.type === 'true-false' ? 'Vrai / Faux' : 'Texte Libre'}
-                      </Badge>
-                      <h3 className="font-semibold text-lg">{index + 1}. {q.question}</h3>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="button" size="sm" variant="ghost" onClick={() => editQuestion(q)}>
-                        <Edit2 className="w-4 h-4 text-blue-600" />
-                      </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => removeQuestion(q.id)}>
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {q.type === 'mcq' && q.options && (
-                    <ul className="mt-2 space-y-1 pl-4">
-                      {q.options.map((opt, i) => (
-                        <li key={i} className={`flex items-center gap-2 text-sm ${opt === q.correctAnswer ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
-                          {opt === q.correctAnswer ? <CheckCircle2 className="w-4 h-4" /> : <span className="w-4 h-4 inline-block rounded-full border border-gray-300" />}
-                          {opt}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {q.type === 'true-false' && (
-                    <div className="mt-2 text-sm font-medium text-green-600 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" /> Réponse: {q.correctAnswer}
-                    </div>
-                  )}
-
-                  {q.type === 'text' && (
-                    <div className="mt-2 text-sm font-medium text-green-600 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" /> Réponse attendue: {q.correctAnswer}
-                    </div>
-                  )}
-
-                  {q.feedback && (
-                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded text-sm">
-                      <span className="font-semibold">Feedback:</span> {q.feedback}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-
-            {questions.length === 0 && !isAddingQuestion && (
-              <div className="text-center p-8 bg-gray-50 border border-dashed rounded-lg">
-                <p className="text-gray-500">Aucune question n'a été ajoutée à ce quiz.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Form to add/edit question */}
-          {isAddingQuestion && (
-            <Card className="border-2 border-blue-200 shadow-md">
-              <CardHeader className="bg-blue-50/50 pb-4">
-                <div className="flex justify-between items-center">
-                  <CardTitle>{editingQuestionId ? 'Modifier la question' : 'Nouvelle question'}</CardTitle>
-                  <Button type="button" variant="ghost" size="sm" onClick={resetQuestionForm}>
-                    <X className="w-5 h-5" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Type de question</Label>
-                  <Select value={qType} onValueChange={(val: QuestionType) => {
-                    setQType(val);
-                    if (val === 'true-false') {
-                      setQCorrect('Vrai');
-                    } else {
-                      setQCorrect('');
-                    }
-                  }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mcq">QCM (Choix Multiples)</SelectItem>
-                      <SelectItem value="true-false">Vrai ou Faux</SelectItem>
-                      <SelectItem value="text">Texte Libre</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Intitulé de la question *</Label>
-                  <Input value={qText} onChange={e => setQText(e.target.value)} placeholder="Posez votre question ici..." />
-                </div>
-
-                {qType === 'mcq' && (
-                  <div className="space-y-3">
-                    <Label>Options de réponse</Label>
-                    {qOptions.map((opt, i) => (
-                      <div key={i} className="flex gap-2 items-center">
-                        <Input 
-                          value={opt} 
-                          onChange={e => {
-                            const newOpts = [...qOptions];
-                            newOpts[i] = e.target.value;
-                            setQOptions(newOpts);
-                            if (qCorrect === opt && opt !== '') {
-                              setQCorrect(e.target.value);
-                            }
-                          }}
-                          placeholder={`Option ${i + 1}`} 
-                        />
-                        {qOptions.length > 2 && (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => setQOptions(qOptions.filter((_, idx) => idx !== i))}>
-                            <X className="w-4 h-4 text-red-500" />
+            <AnimatePresence>
+              {questions.map((q, qi) => (
+                <motion.div
+                  key={qi}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <Card className="border-l-4 border-l-purple-500">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-bold">
+                            {qi + 1}
+                          </span>
+                          <CardTitle className="text-base">
+                            Question {qi + 1}
+                          </CardTitle>
+                        </div>
+                        {questions.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => removeQuestion(qi)}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
-                        <Button 
-                          type="button" 
-                          variant={qCorrect === opt && opt ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => opt && setQCorrect(opt)}
-                          className={qCorrect === opt && opt ? 'bg-green-600 hover:bg-green-700' : ''}
-                        >
-                          Correcte
-                        </Button>
                       </div>
-                    ))}
-                    <Button type="button" variant="outline" size="sm" onClick={() => setQOptions([...qOptions, ''])} className="gap-2 mt-2">
-                      <Plus className="w-4 h-4" /> Ajouter une option
-                    </Button>
-                  </div>
-                )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Type + Points */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Type de question</Label>
+                          <Select
+                            value={q.type}
+                            onValueChange={(v: QuestionType) =>
+                              setQuestionType(qi, v)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.keys(TYPE_LABELS) as QuestionType[]).map(
+                                (t) => (
+                                  <SelectItem key={t} value={t}>
+                                    <span className="flex items-center gap-2">
+                                      {TYPE_ICONS[t]} {TYPE_LABELS[t]}
+                                    </span>
+                                  </SelectItem>
+                                ),
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Points</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={q.points}
+                            onChange={(e) =>
+                              updateQuestion(
+                                qi,
+                                "points",
+                                parseInt(e.target.value) || 1,
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
 
-                {qType === 'true-false' && (
-                  <div className="space-y-2">
-                    <Label>Réponse correcte</Label>
-                    <Select value={qCorrect} onValueChange={setQCorrect}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Vrai">Vrai</SelectItem>
-                        <SelectItem value="Faux">Faux</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                      {/* Texte de la question */}
+                      <div className="space-y-2">
+                        <Label>Énoncé *</Label>
+                        <Textarea
+                          value={q.texte}
+                          onChange={(e) =>
+                            updateQuestion(qi, "texte", e.target.value)
+                          }
+                          placeholder="Saisissez la question..."
+                          rows={2}
+                          required
+                        />
+                      </div>
 
-                {qType === 'text' && (
-                  <div className="space-y-2">
-                    <Label>Réponse attendue (mot-clé exact) *</Label>
-                    <Input value={qCorrect} onChange={e => setQCorrect(e.target.value)} placeholder="Ex: React" />
-                    <p className="text-xs text-gray-500">L'apprenant devra taper exactement cette réponse.</p>
-                  </div>
-                )}
+                      {/* Choix (QCM / Vrai-Faux) */}
+                      {(q.type === "qcm" || q.type === "vrai_faux") && (
+                        <div className="space-y-2">
+                          <Label>
+                            Choix de réponses{" "}
+                            <span className="text-gray-400 text-xs">
+                              (cochez la bonne réponse)
+                            </span>
+                          </Label>
+                          <div className="space-y-2">
+                            {q.choix.map((c, ci) => (
+                              <div
+                                key={ci}
+                                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                                  c.est_correct
+                                    ? "bg-green-50 border-green-300 dark:bg-green-950/20 dark:border-green-800"
+                                    : "bg-gray-50 border-gray-200 dark:bg-slate-800/50"
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    q.type === "vrai_faux"
+                                      ? setCorrectChoix(qi, ci)
+                                      : updateChoix(
+                                          qi,
+                                          ci,
+                                          "est_correct",
+                                          !c.est_correct,
+                                        )
+                                  }
+                                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                    c.est_correct
+                                      ? "bg-green-500 border-green-500 text-white"
+                                      : "border-gray-300 hover:border-green-400"
+                                  }`}
+                                >
+                                  {c.est_correct && (
+                                    <CheckCircle className="w-4 h-4" />
+                                  )}
+                                </button>
+                                <Input
+                                  value={c.texte}
+                                  onChange={(e) =>
+                                    updateChoix(qi, ci, "texte", e.target.value)
+                                  }
+                                  placeholder={`Choix ${ci + 1}`}
+                                  disabled={q.type === "vrai_faux"}
+                                  className="border-0 bg-transparent focus:ring-0 p-0"
+                                />
+                                {q.type === "qcm" && q.choix.length > 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeChoix(qi, ci)}
+                                    className="text-red-400 hover:text-red-600 shrink-0"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {q.type === "qcm" && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-purple-600"
+                              onClick={() => addChoix(qi)}
+                            >
+                              <Plus className="w-3 h-3" /> Ajouter un choix
+                            </Button>
+                          )}
+                        </div>
+                      )}
 
-                <div className="space-y-2 pt-2">
-                  <Label>Feedback explicatif (affiché après réponse)</Label>
-                  <Textarea value={qFeedback} onChange={e => setQFeedback(e.target.value)} placeholder="Expliquez pourquoi c'est la bonne réponse..." rows={2} />
-                </div>
+                      {/* Texte libre */}
+                      {q.type === "texte_libre" && (
+                        <div className="space-y-2 mt-4">
+                          <Label>Correction attendue</Label>
+                          <Textarea
+                            value={q.correction_attendue}
+                            onChange={(e) =>
+                              updateQuestion(
+                                qi,
+                                "correction_attendue",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="Décris ici la réponse attendue pour que l'IA puisse corriger la réponse de l'apprenant..."
+                            rows={4}
+                          />
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Cette correction servira de référence à l’IA pour
+                            attribuer une note et générer un feedback
+                            pédagogique.
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
 
-                <div className="pt-4 flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={resetQuestionForm}>Annuler</Button>
-                  <Button type="button" onClick={saveQuestion} className="gap-2 bg-blue-600">
-                    <Save className="w-4 h-4" /> Enregistrer la question
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="pt-6 border-t flex gap-4">
-            <Button type="submit" className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600" disabled={loading || isAddingQuestion}>
-              {loading ? 'Enregistrement...' : 'Enregistrer le quiz entier'}
+          {/* ── Actions ── */}
+          <div className="flex gap-4">
+            <Button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 h-11"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />{" "}
+                  Enregistrement...
+                </>
+              ) : isEditing ? (
+                "Mettre à jour"
+              ) : (
+                "Créer le quiz"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate(`/app/courses/edit/${courseId}`)}
+              className="h-11 px-6"
+            >
+              Annuler
             </Button>
           </div>
         </form>

@@ -58,13 +58,16 @@ export const ContentViewer: React.FC<ContentViewerProps> = ({
     try {
       await marquerConsulte(formationId, moduleId, content.id, 100);
       setIsComplete(true);
-      toast.success("✅ Contenu marqué comme terminé !");
+      toast.success("Contenu marqué comme terminé !");
       onComplete?.();
     } catch {
       toast.error("Impossible d'enregistrer la progression");
     } finally {
       setMarking(false);
     }
+    // La réponse de marquerConsulte contient maintenant nouveaux_badges
+    const res = await marquerConsulte(formationId, moduleId, content.id, 100);
+    // Dans contenuService.ts, faire retourner res.data au lieu de void
   };
 
   // ── Accès refusé ──────────────────────────────────────────

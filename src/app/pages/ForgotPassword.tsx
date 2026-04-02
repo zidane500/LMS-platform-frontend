@@ -147,11 +147,6 @@ export const ForgotPassword: React.FC = () => {
                   Cliquez sur le lien dans l'email pour réinitialiser votre mot
                   de passe.
                 </p>
-                {/* NOTE DÉVELOPPEMENT : si MAIL_MAILER=log, l'email est dans storage/logs/laravel.log */}
-                <p className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                  💡 En mode développement, l'email est enregistré dans{" "}
-                  <code>storage/logs/laravel.log</code>
-                </p>
               </motion.div>
             )}
 

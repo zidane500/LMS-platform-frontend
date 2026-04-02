@@ -108,7 +108,7 @@ export const Courses: React.FC = () => {
     try {
       await deleteFormation(courseToDelete);
       setCourses((prev) => prev.filter((c) => c.id !== courseToDelete));
-      toast.success("✅ Formation supprimée avec succès");
+      toast.success("Formation supprimée avec succès");
       setCourseToDelete(null);
     } catch (error: unknown) {
       if (axios.isAxiosError(error))

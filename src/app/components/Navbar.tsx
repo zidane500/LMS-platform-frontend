@@ -1,23 +1,23 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  GraduationCap, 
-  LayoutDashboard, 
-  BookOpen, 
-  User, 
-  LogOut, 
-  Menu, 
+import React, { useState } from "react";
+import { Link, useLocation } from "react-router";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  GraduationCap,
+  LayoutDashboard,
+  BookOpen,
+  User,
+  LogOut,
+  Menu,
   X,
   Shield,
   UserPlus,
-  Award
-} from 'lucide-react';
-import { useApp } from '../context/AppContext';
-import { Button } from './ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { ThemeToggle } from './ThemeToggle';
-import { NotificationBell } from './NotificationBell';
+  Award,
+} from "lucide-react";
+import { useApp } from "../context/AppContext";
+import { Button } from "./ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { ThemeToggle } from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
@@ -30,18 +30,36 @@ export const Navbar: React.FC = () => {
     setCurrentUser(null);
   };
 
+  const [avatarKey, setAvatarKey] = React.useState(Date.now());
+
+  React.useEffect(() => {
+    setAvatarKey(Date.now());
+  }, [currentUser?.avatar]);
+
+  const avatarUrl = currentUser.avatar
+    ? `${currentUser.avatar}?t=${avatarKey}`
+    : undefined;
+
   const navItems = [
-    { path: '/app', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/app/courses', label: 'Formations', icon: BookOpen },
-    { path: '/app/profile', label: 'Profil', icon: User },
+    { path: "/app", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/app/courses", label: "Formations", icon: BookOpen },
+    { path: "/app/profile", label: "Profil", icon: User },
   ];
 
-  if (currentUser.role === 'learner') {
-    navItems.push({ path: '/app/certificates', label: 'Certificats', icon: Award });
+  if (currentUser.role === "learner") {
+    navItems.push({
+      path: "/app/certificates",
+      label: "Certificats",
+      icon: Award,
+    });
   }
 
-  if (currentUser.role === 'admin') {
-    navItems.push({ path: '/app/admin', label: 'Administration', icon: Shield });
+  if (currentUser.role === "admin") {
+    navItems.push({
+      path: "/app/admin",
+      label: "Administration",
+      icon: Shield,
+    });
   }
 
   return (
@@ -70,11 +88,11 @@ export const Navbar: React.FC = () => {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
-              
+
               return (
                 <Link key={item.path} to={item.path}>
                   <Button
-                    variant={isActive ? 'default' : 'ghost'}
+                    variant={isActive ? "default" : "ghost"}
                     className="gap-2"
                   >
                     <Icon className="w-4 h-4" />
@@ -87,7 +105,7 @@ export const Navbar: React.FC = () => {
 
           {/* User Menu */}
           <div className="hidden md:flex items-center gap-4">
-            {currentUser.role === 'learner' && (
+            {currentUser.role === "learner" && (
               <Link to="/app/become-instructor">
                 <Button
                   variant="outline"
@@ -101,13 +119,18 @@ export const Navbar: React.FC = () => {
             <ThemeToggle />
             <NotificationBell />
             <div className="text-right">
-              <p className="text-sm font-medium dark:text-white">{currentUser.firstName} {currentUser.lastName}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{currentUser.role}</p>
+              <p className="text-sm font-medium dark:text-white">
+                {currentUser.firstName} {currentUser.lastName}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                {currentUser.role}
+              </p>
             </div>
             <Avatar>
-              <AvatarImage src={currentUser.avatar} />
+              <AvatarImage src={avatarUrl} />
               <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                {currentUser.firstName[0]}{currentUser.lastName[0]}
+                {currentUser.firstName[0]}
+                {currentUser.lastName[0]}
               </AvatarFallback>
             </Avatar>
             <Button
@@ -127,7 +150,11 @@ export const Navbar: React.FC = () => {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? (
+              <X className="w-6 h-6" />
+            ) : (
+              <Menu className="w-6 h-6" />
+            )}
           </Button>
         </div>
 
@@ -136,19 +163,21 @@ export const Navbar: React.FC = () => {
           {mobileMenuOpen && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
+              animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               className="md:hidden bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700"
             >
               <div className="px-4 py-4 space-y-2">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium dark:text-white">Thème</span>
+                  <span className="text-sm font-medium dark:text-white">
+                    Thème
+                  </span>
                   <ThemeToggle />
                 </div>
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path;
-                  
+
                   return (
                     <Link
                       key={item.path}
@@ -156,7 +185,7 @@ export const Navbar: React.FC = () => {
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Button
-                        variant={isActive ? 'default' : 'ghost'}
+                        variant={isActive ? "default" : "ghost"}
                         className="w-full justify-start gap-2"
                       >
                         <Icon className="w-4 h-4" />

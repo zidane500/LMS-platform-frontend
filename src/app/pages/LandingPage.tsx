@@ -45,7 +45,6 @@ export const LandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 overflow-hidden">
-
       {/* ✅ Masque les boutons natifs du navigateur (PiP, plein écran) sur la vidéo */}
       <style>{`
         video::-webkit-media-controls,
@@ -84,7 +83,6 @@ export const LandingPage: React.FC = () => {
       <div className="relative">
         <div className="container mx-auto px-4 py-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-
             {/* Left Content */}
             <motion.div
               initial={{ opacity: 0, x: -50 }}
@@ -98,7 +96,7 @@ export const LandingPage: React.FC = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 mb-6"
               >
                 <Sparkles className="w-4 h-4 text-purple-400" />
-                <span className="text-purple-300 text-sm">Plateforme LMS Nouvelle Génération</span>
+                <span className="text-purple-300 text-sm">Plateforme LMS</span>
               </motion.div>
 
               <motion.h1
@@ -123,7 +121,8 @@ export const LandingPage: React.FC = () => {
                 className="text-xl text-gray-300 mb-8 leading-relaxed"
               >
                 Rejoignez la plateforme d'apprentissage la plus innovante.
-                Formations de qualité, suivi personnalisé et certifications reconnues.
+                Formations de qualité, suivi personnalisé et certifications
+                reconnues.
               </motion.p>
 
               <motion.div
@@ -134,7 +133,10 @@ export const LandingPage: React.FC = () => {
               >
                 <Link to="/login">
                   <motion.button
-                    whileHover={{ scale: 1.05, boxShadow: "0 20px 60px rgba(168, 85, 247, 0.4)" }}
+                    whileHover={{
+                      scale: 1.05,
+                      boxShadow: "0 20px 60px rgba(168, 85, 247, 0.4)",
+                    }}
                     whileTap={{ scale: 0.95 }}
                     className="px-8 py-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl font-semibold shadow-lg shadow-purple-500/50 flex items-center gap-2"
                   >
@@ -160,7 +162,9 @@ export const LandingPage: React.FC = () => {
                     <CheckCircle className="w-5 h-5 text-green-400" />
                   </motion.div>
                 ))}
-                <span className="text-gray-400">Plus de 10,000 apprenants satisfaits</span>
+                <span className="text-gray-400">
+                  Plus de 10,000 apprenants satisfaits
+                </span>
               </motion.div>
             </motion.div>
 
@@ -170,20 +174,30 @@ export const LandingPage: React.FC = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
               className="relative"
-              style={{ padding: "2.5rem 1rem" }} /* espace pour les cartes qui débordent */
+              style={{
+                padding: "2.5rem 1rem",
+              }} /* espace pour les cartes qui débordent */
             >
               <motion.div
                 animate={{ y: [0, -20, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
                 className="relative z-10"
               >
-
                 {/* ✅ Carte Certification — AU-DESSUS de la vidéo, côté gauche */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 1 }}
-                  style={{ position: "absolute", top: "-4rem", left: "0.5rem", zIndex: 20 }}
+                  style={{
+                    position: "absolute",
+                    top: "-4rem",
+                    left: "0.5rem",
+                    zIndex: 20,
+                  }}
                 >
                   <motion.div
                     animate={{ y: [0, 8, 0] }}
@@ -195,8 +209,12 @@ export const LandingPage: React.FC = () => {
                         <Award className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <div className="text-white font-semibold">Certification</div>
-                        <div className="text-gray-300 text-sm">+150 cette semaine</div>
+                        <div className="text-white font-semibold">
+                          Certification
+                        </div>
+                        <div className="text-gray-300 text-sm">
+                          +150 cette semaine
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -227,7 +245,12 @@ export const LandingPage: React.FC = () => {
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 1.2 }}
-                  style={{ position: "absolute", bottom: "-5.5rem", right: "0.5rem", zIndex: 20 }}
+                  style={{
+                    position: "absolute",
+                    bottom: "-5.5rem",
+                    right: "0.5rem",
+                    zIndex: 20,
+                  }}
                 >
                   <motion.div
                     animate={{ y: [0, -8, 0] }}
@@ -239,16 +262,18 @@ export const LandingPage: React.FC = () => {
                         <TrendingUp className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <div className="text-white font-semibold">95% Réussite</div>
-                        <div className="text-gray-300 text-sm">Taux de complétion</div>
+                        <div className="text-white font-semibold">
+                          95% Réussite
+                        </div>
+                        <div className="text-gray-300 text-sm">
+                          Taux de complétion
+                        </div>
                       </div>
                     </div>
                   </motion.div>
                 </motion.div>
-
               </motion.div>
             </motion.div>
-
           </div>
         </div>
       </div>
@@ -330,7 +355,9 @@ export const LandingPage: React.FC = () => {
                     >
                       <Icon className="w-7 h-7 text-white" />
                     </motion.div>
-                    <h3 className="text-xl font-semibold text-white mb-2">{feature.title}</h3>
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      {feature.title}
+                    </h3>
                     <p className="text-gray-400">{feature.description}</p>
                   </div>
                 </motion.div>
@@ -362,11 +389,15 @@ export const LandingPage: React.FC = () => {
                 Prêt à commencer votre parcours ?
               </h2>
               <p className="text-xl text-gray-300 mb-8">
-                Rejoignez des milliers d'apprenants et transformez votre carrière dès aujourd'hui
+                Rejoignez des milliers d'apprenants et transformez votre
+                carrière dès aujourd'hui
               </p>
               <Link to="/login">
                 <motion.button
-                  whileHover={{ scale: 1.05, boxShadow: "0 20px 60px rgba(168, 85, 247, 0.4)" }}
+                  whileHover={{
+                    scale: 1.05,
+                    boxShadow: "0 20px 60px rgba(168, 85, 247, 0.4)",
+                  }}
                   whileTap={{ scale: 0.95 }}
                   className="px-10 py-5 bg-white text-purple-600 rounded-xl font-bold text-lg shadow-lg hover:shadow-2xl transition-shadow"
                 >

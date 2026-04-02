@@ -100,12 +100,12 @@ export const CreateCourse: React.FC = () => {
         const res = await api.post("/formations", fd);
 
         const course = mapApiFormation(res.data.formation);
-        toast.success("✅ Formation créée !");
+        toast.success("Formation créée !");
         navigate(`/app/courses/edit/${course.id}`);
       } else {
         // URL externe → appel normal
         const course = await createFormation({ ...formData, prerequisites });
-        toast.success("✅ Formation créée !");
+        toast.success("Formation créée !");
         navigate(`/app/courses/edit/${course.id}`);
       }
     } catch (error: unknown) {
@@ -361,7 +361,7 @@ export const CreateCourse: React.FC = () => {
                     Création...
                   </div>
                 ) : (
-                  "✅ Créer la formation"
+                  "Créer la formation"
                 )}
               </Button>
             </motion.div>

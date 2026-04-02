@@ -21,7 +21,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useApp } from "../context/AppContext";
+
 import {
   getFormation,
   updateFormation,
@@ -87,6 +87,9 @@ import type {
 } from "../types";
 
 import api from "../services/api";
+
+import { getQuiz, deleteQuiz as apiDeleteQuiz } from "../services/quizService";
+import type { QuizApi } from "../services/quizService";
 
 // ── Icônes type contenu ───────────────────────────────────
 const ContentIcon: React.FC<{ type: ContentType; className?: string }> = ({
@@ -176,7 +179,9 @@ export const EditCourse: React.FC = () => {
   const navigate = useNavigate();
   const { courseId } = useParams<{ courseId: string }>();
   const { currentUser } = useAuth();
-  const { quizzes, setQuizzes } = useApp();
+  const [moduleQuizzes, setModuleQuizzes] = useState<
+    Record<string, QuizApi | null>
+  >({});
 
   const [course, setCourse] = useState<Course | null>(null);
   const [courseModules, setCourseModules] = useState<Module[]>([]);
@@ -261,19 +266,24 @@ export const EditCourse: React.FC = () => {
   }
   if (!course) return null;
 
-  const courseQuizzes = quizzes.filter((q) =>
-    courseModules.some((m) => m.id === q.moduleId),
-  );
   const handleChange = (field: string, value: string | number) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
   // ── Charger les contenus d'un module ─────────────────────
   const loadContenus = async (moduleId: string) => {
-    if (moduleContenus[moduleId]) return; // déjà chargés
+    if (moduleContenus[moduleId]) return;
     setLoadingContenus((prev) => ({ ...prev, [moduleId]: true }));
     try {
       const data = await getContenus(courseId!, moduleId);
       setModuleContenus((prev) => ({ ...prev, [moduleId]: data }));
+
+      // ✅ Charger le quiz du module
+      try {
+        const quiz = await getQuiz(courseId!, moduleId);
+        setModuleQuizzes((prev) => ({ ...prev, [moduleId]: quiz }));
+      } catch {
+        setModuleQuizzes((prev) => ({ ...prev, [moduleId]: null }));
+      }
     } catch {
       toast.error("Impossible de charger les contenus");
     } finally {
@@ -332,7 +342,14 @@ export const EditCourse: React.FC = () => {
     try {
       await apiDeleteModule(courseId!, moduleId);
       setCourseModules((prev) => prev.filter((m) => m.id !== moduleId));
-      setQuizzes(quizzes.filter((q) => q.moduleId !== moduleId));
+
+      // ✅ Supprimer aussi le quiz du module dans le state local
+      setModuleQuizzes((prev) => {
+        const updated = { ...prev };
+        delete updated[moduleId];
+        return updated;
+      });
+
       const newContenus = { ...moduleContenus };
       delete newContenus[moduleId];
       setModuleContenus(newContenus);
@@ -361,7 +378,7 @@ export const EditCourse: React.FC = () => {
         courseId!,
         courseModules.map((m) => ({ id: m.id, ordre: m.order })),
       );
-      toast.success("✅ Ordre sauvegardé");
+      toast.success("Ordre sauvegardé");
     } catch {
       toast.error("Erreur lors de la sauvegarde de l'ordre");
     }
@@ -470,10 +487,14 @@ export const EditCourse: React.FC = () => {
     }
   };
 
-  const deleteQuiz = (id: string) => {
-    if (confirm("Supprimer ce quiz ?")) {
-      setQuizzes(quizzes.filter((q) => q.id !== id));
+  const deleteQuiz = async (moduleId: string, quizId: string) => {
+    if (!confirm("Supprimer ce quiz ?")) return;
+    try {
+      await apiDeleteQuiz(courseId!, moduleId, quizId);
+      setModuleQuizzes((prev) => ({ ...prev, [moduleId]: null }));
       toast.success("Quiz supprimé");
+    } catch {
+      toast.error("Erreur lors de la suppression");
     }
   };
 
@@ -1123,9 +1144,7 @@ export const EditCourse: React.FC = () => {
                     {[...courseModules]
                       .sort((a, b) => a.order - b.order)
                       .map((module, index) => {
-                        const quiz = courseQuizzes.find(
-                          (q) => q.moduleId === module.id,
-                        );
+                        const quiz = moduleQuizzes[module.id];
                         const contenus = moduleContenus[module.id] || [];
                         const isLoadingC = loadingContenus[module.id];
                         return (
@@ -1225,7 +1244,7 @@ export const EditCourse: React.FC = () => {
                                           <div className="flex items-center gap-3 min-w-0">
                                             <ContentIcon type={c.type} />
                                             <div className="min-w-0">
-                                              <p className="text-sm font-medium truncate">
+                                              <p className="text-sm font-medium truncate text-gray-900 dark:text-black">
                                                 {c.title}
                                               </p>
                                               {c.duration > 0 && (
@@ -1315,11 +1334,11 @@ export const EditCourse: React.FC = () => {
                                     <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-100">
                                       <div>
                                         <h5 className="font-medium text-purple-900">
-                                          {quiz.title}
+                                          {quiz.titre}
                                         </h5>
                                         <p className="text-sm text-purple-700">
                                           {quiz.questions.length} questions •
-                                          Seuil : {quiz.passingScore}%
+                                          Seuil : {quiz.seuil_reussite}%
                                         </p>
                                       </div>
                                       <div className="flex gap-2">
@@ -1339,7 +1358,9 @@ export const EditCourse: React.FC = () => {
                                           size="sm"
                                           variant="ghost"
                                           className="text-red-600"
-                                          onClick={() => deleteQuiz(quiz.id)}
+                                          onClick={() =>
+                                            deleteQuiz(module.id, quiz.id)
+                                          }
                                         >
                                           <Trash2 className="w-4 h-4" />
                                         </Button>

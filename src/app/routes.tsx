@@ -2,53 +2,53 @@
 //
 // Configuration de toutes les routes de l'application
 
-import { createBrowserRouter } from 'react-router';
-import { Layout } from './Layout';
-import { LandingPage } from './pages/LandingPage';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { ForgotPassword } from './pages/ForgotPassword'; // ← NOUVEAU
-import { ResetPassword } from './pages/ResetPassword';
-import { Dashboard } from './pages/Dashboard';
-import { Courses } from './pages/Courses';
-import { CourseDetail } from './pages/CourseDetail';
-import { CreateCourse } from './pages/CreateCourse';
-import { EditCourse } from './pages/EditCourse';
-import { Profile } from './pages/Profile';
-import { EditProfile } from './pages/EditProfile';
-import { BecomeInstructor } from './pages/BecomeInstructor';
-import { Admin } from './pages/Admin';
-import { UserManagement } from './pages/UserManagement';
-import { Certificates } from './pages/Certificates';
-import { Reports } from './pages/Reports';
-import { NotFound } from './pages/NotFound';
-import { Quiz } from './pages/Quiz';
-import { EditQuiz } from './pages/EditQuiz';
+import { createBrowserRouter } from "react-router";
+import { Layout } from "./Layout";
+import { LandingPage } from "./pages/LandingPage";
+import { Login } from "./pages/Login";
+import { Register } from "./pages/Register";
+import { ForgotPassword } from "./pages/ForgotPassword"; // ← NOUVEAU
+import { ResetPassword } from "./pages/ResetPassword";
+import { Dashboard } from "./pages/Dashboard";
+import { Courses } from "./pages/Courses";
+import { CourseDetail } from "./pages/CourseDetail";
+import { CreateCourse } from "./pages/CreateCourse";
+import { EditCourse } from "./pages/EditCourse";
+import { Profile } from "./pages/Profile";
+import { EditProfile } from "./pages/EditProfile";
+import { BecomeInstructor } from "./pages/BecomeInstructor";
+import { Admin } from "./pages/Admin";
+import { UserManagement } from "./pages/UserManagement";
+import { Certificates } from "./pages/Certificates";
+import { Reports } from "./pages/Reports";
+import { NotFound } from "./pages/NotFound";
+import { Quiz } from "./pages/Quiz";
+import { EditQuiz } from "./pages/EditQuiz";
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     Component: LandingPage,
   },
   {
-    path: '/login',
+    path: "/login",
     Component: Login,
   },
   {
-    path: '/register',
+    path: "/register",
     Component: Register,
   },
   {
     // ← NOUVELLE ROUTE : mot de passe oublié
-    path: '/forgot-password',
+    path: "/forgot-password",
     Component: ForgotPassword,
   },
   {
-      path: '/reset-password',
-      Component: ResetPassword,
+    path: "/reset-password",
+    Component: ResetPassword,
   },
   {
-    path: '/app',
+    path: "/app",
     Component: Layout,
     children: [
       {
@@ -56,69 +56,69 @@ export const router = createBrowserRouter([
         Component: Dashboard,
       },
       {
-        path: 'dashboard',
+        path: "dashboard",
         Component: Dashboard,
       },
       {
-        path: 'courses',
+        path: "courses",
         Component: Courses,
       },
       {
-        path: 'courses/:id',
+        path: "courses/:id",
         Component: CourseDetail,
       },
       {
-        path: 'courses/create',
+        path: "courses/create",
         Component: CreateCourse,
       },
       {
-        path: 'courses/edit/:courseId',
+        path: "courses/edit/:courseId",
         Component: EditCourse,
       },
       {
-        path: 'courses/:courseId/modules/:moduleId/quiz/create',
+        path: "courses/:courseId/modules/:moduleId/quiz/create",
         Component: EditQuiz,
       },
       {
-        path: 'courses/:courseId/modules/:moduleId/quiz/:quizId/edit',
+        path: "courses/:courseId/modules/:moduleId/quiz/:quizId/edit",
         Component: EditQuiz,
       },
       {
-        path: 'courses/:courseId/quiz/:quizId',
+        path: "courses/:courseId/modules/:moduleId/quiz/:quizId",
         Component: Quiz,
       },
       {
-        path: 'profile',
+        path: "profile",
         Component: Profile,
       },
       {
-        path: 'profile/edit',
+        path: "profile/edit",
         Component: EditProfile,
       },
       {
-        path: 'become-instructor',
+        path: "become-instructor",
         Component: BecomeInstructor,
       },
       {
-        path: 'admin',
+        path: "admin",
         Component: Admin,
       },
       {
-        path: 'admin/user-management',
+        path: "admin/user-management",
         Component: UserManagement,
       },
       {
-        path: 'certificates',
+        path: "certificates",
         Component: Certificates,
       },
       {
-        path: 'reports',
+        path: "reports",
         Component: Reports,
       },
     ],
   },
   {
-    path: '*',
+    path: "*",
     Component: NotFound,
   },
 ]);
