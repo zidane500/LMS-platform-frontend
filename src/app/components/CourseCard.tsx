@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "motion/react";
-import { Clock, BarChart, BookOpen, User, Edit, Trash2 } from "lucide-react";
+import { Clock, BookOpen, User, Edit, Trash2 } from "lucide-react";
 import { Course } from "../types";
 import { Card, CardContent, CardFooter } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -50,12 +50,8 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             alt={course.title}
             className="w-full h-48 object-cover"
           />
+
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <Badge
-            className={`absolute top-3 right-3 ${levelColors[course.level]}`}
-          >
-            {course.level}
-          </Badge>
 
           {/* Admin Actions Buttons */}
           {showAdminActions && (
@@ -101,12 +97,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         </div>
 
         <CardContent className="flex-1 p-6">
-          <Badge variant="outline" className="mb-2">
-            {course.category}
-          </Badge>
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <Badge variant="outline">{course.category}</Badge>
+            <Badge className={levelColors[course.level]}>{course.level}</Badge>
+          </div>
+
           <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
             {course.title}
           </h3>
+
           <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-4">
             {course.description}
           </p>

@@ -176,11 +176,18 @@ export const Quiz: React.FC = () => {
       const res = await passerQuiz(
         courseId!,
         moduleId!,
-        quiz.id, // ✅ quiz.id au lieu de quizId! (qui vaut "pass")
+        quiz.id,
         reponsesArray,
         tempsEcoule,
       );
       setResultat(res);
+      if ((res as any).nouveaux_badges?.length > 0) {
+        (res as any).nouveaux_badges.forEach((badge: any) => {
+          toast.success(`🏆 Nouveau badge : ${badge.icone} ${badge.nom} !`, {
+            duration: 5000,
+          });
+        });
+      }
       if (!auto) toast.success(res.reussi ? "Quiz réussi !" : "📊 Quiz soumis");
       else toast.warning("⏱ Temps écoulé — quiz soumis automatiquement");
     } catch (error: unknown) {

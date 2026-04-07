@@ -1,6 +1,9 @@
 // src/app/pages/CourseDetail.tsx — US 3.2 complet : design moderne
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
+import { getProgression } from "../services/progressionService";
+import { getQuiz } from "../services/quizService";
+import type { ProgressionFormation } from "../services/progressionService";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft,
@@ -35,6 +38,7 @@ import {
 } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
 import { toast } from "sonner";
+
 import axios from "axios";
 import type { Course, Content, ContentType } from "../types";
 
@@ -76,27 +80,96 @@ export const CourseDetail: React.FC = () => {
   const [loadingContenus, setLoadingContenus] = useState<
     Record<string, boolean>
   >({});
+  const [progressionData, setProgressionData] =
+    useState<ProgressionFormation | null>(null);
+  const [moduleQuizStatus, setModuleQuizStatus] = useState<
+    Record<string, { quizId: string | null; termine: boolean }>
+  >({});
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<{
     moduleId: string;
     content: Content & { progression?: any };
   } | null>(null);
 
+  const chargerProgression = async (
+    formationId: string,
+  ): Promise<ProgressionFormation | null> => {
+    if (!currentUser || currentUser.role !== "learner") return null;
+
+    try {
+      const data = await getProgression(formationId);
+      setProgressionData(data);
+      return data;
+    } catch {
+      setProgressionData(null);
+      return null;
+    }
+  };
+  const chargerStatutQuiz = async (
+    formationId: string,
+    moduleId: string,
+    progression: ProgressionFormation | null,
+  ) => {
+    try {
+      const quiz = await getQuiz(formationId, moduleId);
+
+      const termine = (progression?.tentatives_quiz ?? []).some(
+        (t) => String(t.quiz_id) === String(quiz.id),
+      );
+
+      setModuleQuizStatus((prev) => ({
+        ...prev,
+        [moduleId]: {
+          quizId: quiz.id,
+          termine,
+        },
+      }));
+    } catch {
+      setModuleQuizStatus((prev) => ({
+        ...prev,
+        [moduleId]: {
+          quizId: null,
+          termine: false,
+        },
+      }));
+    }
+  };
   // ── Chargement ───────────────────────────────────────────
   useEffect(() => {
     if (!courseId) return;
     setPageLoading(true);
+    setModuleQuizStatus({});
+
     getFormation(courseId)
-      .then((c) => {
+      .then(async (c) => {
         setCourse(c);
-        setIsEnrolled((c as any).isEnrolled ?? false);
+        const enrolled = (c as any).isEnrolled ?? false;
+        setIsEnrolled(enrolled);
+
+        if (currentUser?.role === "learner" && enrolled) {
+          const progression = await chargerProgression(courseId);
+
+          const modulesFormation = c.modules ?? [];
+          const promises = modulesFormation.map(async (module) => {
+            try {
+              const data = await getContenus(courseId, module.id);
+              setModuleContenus((prev) => ({ ...prev, [module.id]: data }));
+            } catch {
+              // silencieux
+            }
+
+            await chargerStatutQuiz(courseId, module.id, progression);
+          });
+
+          await Promise.all(promises);
+        }
       })
       .catch(() => {
         toast.error("Formation introuvable");
         navigate("/app/courses");
       })
       .finally(() => setPageLoading(false));
-  }, [courseId]);
+  }, [courseId, currentUser]);
 
   if (pageLoading) {
     return (
@@ -121,15 +194,33 @@ export const CourseDetail: React.FC = () => {
 
   // ── Progression globale ───────────────────────────────────
   const getAllContenus = () => Object.values(moduleContenus).flat();
+
   const getTotalProgress = (): number => {
+    if (progressionData) {
+      return progressionData.pourcentage_global ?? 0;
+    }
+
     const all = getAllContenus();
     if (all.length === 0) return 0;
+
     const done = all.filter((c) => c.progression?.complete).length;
     return Math.round((done / all.length) * 100);
   };
+
   const getModuleProgress = (moduleId: string): number => {
+    if (progressionData?.modules?.length) {
+      const moduleProgress = progressionData.modules.find(
+        (m) => String(m.module_id) === String(moduleId),
+      );
+
+      if (moduleProgress) {
+        return moduleProgress.pourcentage ?? 0;
+      }
+    }
+
     const c = moduleContenus[moduleId] || [];
     if (c.length === 0) return 0;
+
     return Math.round(
       (c.filter((x) => x.progression?.complete).length / c.length) * 100,
     );
@@ -171,15 +262,21 @@ export const CourseDetail: React.FC = () => {
     setOpenModuleId(moduleId);
     setSelectedContent(null);
 
-    if (!moduleContenus[moduleId] && courseId) {
-      setLoadingContenus((prev) => ({ ...prev, [moduleId]: true }));
-      try {
-        const data = await getContenus(courseId, moduleId);
-        setModuleContenus((prev) => ({ ...prev, [moduleId]: data }));
-      } catch {
-        toast.error("Impossible de charger les contenus");
-      } finally {
-        setLoadingContenus((prev) => ({ ...prev, [moduleId]: false }));
+    if (courseId) {
+      if (!moduleContenus[moduleId]) {
+        setLoadingContenus((prev) => ({ ...prev, [moduleId]: true }));
+        try {
+          const data = await getContenus(courseId, moduleId);
+          setModuleContenus((prev) => ({ ...prev, [moduleId]: data }));
+        } catch {
+          toast.error("Impossible de charger les contenus");
+        } finally {
+          setLoadingContenus((prev) => ({ ...prev, [moduleId]: false }));
+        }
+      }
+
+      if (!moduleQuizStatus[moduleId]) {
+        await chargerStatutQuiz(courseId, moduleId, progressionData);
       }
     }
   };
@@ -205,7 +302,7 @@ export const CourseDetail: React.FC = () => {
   };
 
   // ── Marquer terminé ───────────────────────────────────────
-  const handleContentComplete = (moduleId: string, contentId: string) => {
+  const handleContentComplete = async (moduleId: string, contentId: string) => {
     setModuleContenus((prev) => ({
       ...prev,
       [moduleId]: (prev[moduleId] || []).map((c) =>
@@ -214,6 +311,7 @@ export const CourseDetail: React.FC = () => {
           : c,
       ),
     }));
+
     if (selectedContent?.content.id === contentId) {
       setSelectedContent((prev) =>
         prev
@@ -226,6 +324,10 @@ export const CourseDetail: React.FC = () => {
             }
           : null,
       );
+    }
+
+    if (courseId && currentUser?.role === "learner") {
+      await chargerProgression(courseId);
     }
   };
 
@@ -342,7 +444,7 @@ export const CourseDetail: React.FC = () => {
                     </button>
 
                     {/* Progression totale */}
-                    {getAllContenus().length > 0 && (
+                    {currentUser?.role === "learner" && isEnrolled && (
                       <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-sm">
                         <BarChart3 className="w-4 h-4 text-blue-400 shrink-0" />
                         <div className="min-w-[100px]">
@@ -505,66 +607,97 @@ export const CourseDetail: React.FC = () => {
                     const isOpen = openModuleId === module.id;
                     const contenus = moduleContenus[module.id] || [];
                     const isLoadingC = loadingContenus[module.id];
+                    const quizStatus = moduleQuizStatus[module.id];
                     const modProg = getModuleProgress(module.id);
 
                     return (
                       <div key={module.id}>
                         {/* En-tête module */}
-                        <button
-                          onClick={() => handleToggleModule(module.id)}
-                          className="w-full flex items-center gap-4 px-6 py-4 hover:bg-white/5 transition-colors text-left group"
-                        >
-                          {/* Numéro */}
-                          <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${
-                              isOpen
-                                ? "bg-blue-600 text-white"
-                                : "bg-white/10 text-slate-400 group-hover:bg-white/15"
-                            }`}
+                        {/* En-tête module */}
+                        <div className="w-full flex items-center gap-3 px-6 py-4 hover:bg-white/5 transition-colors">
+                          <button
+                            onClick={() => handleToggleModule(module.id)}
+                            className="flex-1 min-w-0 flex items-center gap-4 text-left group"
                           >
-                            {index + 1}
-                          </div>
-                          {/* Titre + description */}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-white">
-                              {module.title}
-                            </p>
-                            {module.description && (
-                              <p className="text-xs text-slate-500 truncate mt-0.5">
-                                {module.description}
-                              </p>
-                            )}
-                          </div>
-                          {/* Progression + durée + chevron */}
-                          <div className="flex items-center gap-3 shrink-0">
-                            {isOpen &&
-                              moduleContenus[module.id] &&
-                              contenus.length > 0 &&
-                              currentUser?.role === "learner" && (
-                                <div className="hidden sm:flex items-center gap-2">
-                                  <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-blue-500 rounded-full"
-                                      style={{ width: `${modProg}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-slate-500">
-                                    {modProg}%
-                                  </span>
-                                </div>
-                              )}
-                            {module.duration > 0 && (
-                              <span className="text-xs text-slate-500 hidden sm:block">
-                                {module.duration} min
-                              </span>
-                            )}
+                            {/* Numéro */}
                             <div
-                              className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${
+                                isOpen
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-white/10 text-slate-400 group-hover:bg-white/15"
+                              }`}
                             >
-                              <ChevronDown className="w-4 h-4 text-slate-500" />
+                              {index + 1}
                             </div>
-                          </div>
-                        </button>
+
+                            {/* Titre + description */}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-white">
+                                {module.title}
+                              </p>
+                              {module.description && (
+                                <p className="text-xs text-slate-500 truncate mt-0.5">
+                                  {module.description}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Progression + durée + chevron */}
+                            <div className="flex items-center gap-3 shrink-0">
+                              {currentUser?.role === "learner" &&
+                                isEnrolled && (
+                                  <div className="hidden sm:flex items-center gap-2">
+                                    <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-blue-500 rounded-full"
+                                        style={{ width: `${modProg}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs text-slate-500">
+                                      {modProg}%
+                                    </span>
+                                  </div>
+                                )}
+
+                              {module.duration > 0 && (
+                                <span className="text-xs text-slate-500 hidden sm:block">
+                                  {module.duration} min
+                                </span>
+                              )}
+
+                              <div
+                                className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                              >
+                                <ChevronDown className="w-4 h-4 text-slate-500" />
+                              </div>
+                            </div>
+                          </button>
+
+                          {canAccess && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(
+                                  `/app/courses/${courseId}/modules/${module.id}/quiz/${quizStatus?.quizId ?? "0"}`,
+                                );
+                              }}
+                              className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                                quizStatus?.termine
+                                  ? "text-green-400 border-green-500/20 bg-green-500/5 hover:bg-green-500/10"
+                                  : "text-purple-400 border-purple-500/20 bg-purple-500/5 hover:bg-purple-500/10"
+                              }`}
+                            >
+                              {quizStatus?.termine ? (
+                                <CheckCircle className="w-4 h-4" />
+                              ) : (
+                                <Award className="w-4 h-4" />
+                              )}
+                              {quizStatus?.termine
+                                ? "Quiz terminé"
+                                : "Passer le quiz"}
+                            </button>
+                          )}
+                        </div>
 
                         {/* Liste des contenus */}
                         <AnimatePresence>
@@ -591,86 +724,77 @@ export const CourseDetail: React.FC = () => {
                                       selectedContent?.content.id === c.id;
                                     const isDone = c.progression?.complete;
                                     return (
-                                      <motion.button
+                                      <motion.div
                                         key={c.id}
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: ci * 0.05 }}
-                                        onClick={() =>
-                                          handleSelectContent(module.id, c)
-                                        }
-                                        className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-all ${
+                                        className={`w-full transition-all ${
                                           isSelected
                                             ? "bg-blue-500/10 border-l-2 border-blue-500"
                                             : "hover:bg-white/5 border-l-2 border-transparent"
-                                        } ${!canAccess ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                        } ${!canAccess ? "opacity-50" : ""}`}
                                       >
-                                        {/* Icône état */}
-                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-white/5">
-                                          {!canAccess ? (
-                                            <Lock className="w-3.5 h-3.5 text-slate-600" />
-                                          ) : isDone ? (
-                                            <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                                          ) : (
-                                            <ContentIcon
-                                              type={c.type}
-                                              className="w-3.5 h-3.5"
-                                            />
-                                          )}
-                                        </div>
-                                        {/* Infos */}
-                                        <div className="flex-1 min-w-0">
-                                          <p
-                                            className={`text-sm font-medium truncate ${
-                                              isSelected
-                                                ? "text-blue-400"
-                                                : isDone
-                                                  ? "text-slate-500"
-                                                  : "text-slate-300"
-                                            }`}
-                                          >
-                                            {c.title}
-                                          </p>
-                                          {c.summary && (
-                                            <p className="text-xs text-slate-600 truncate">
-                                              {c.summary}
-                                            </p>
-                                          )}
-                                        </div>
-                                        {/* Badges */}
-                                        <div className="flex items-center gap-2 shrink-0">
-                                          {c.duration > 0 && (
-                                            <span className="text-xs text-slate-600">
-                                              {c.duration} min
-                                            </span>
-                                          )}
-                                          {isDone && (
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
-                                              ✓ Terminé
-                                            </span>
-                                          )}
-                                          {isSelected && !isDone && (
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                              En cours
-                                            </span>
-                                          )}
-                                        </div>
-                                        {canAccess && (
-                                          <div className="px-6 py-3 bg-purple-500/5 border-t border-purple-500/10">
-                                            <button
-                                              onClick={() =>
-                                                navigate(
-                                                  `/app/courses/${courseId}/modules/${module.id}/quiz/pass`,
-                                                )
-                                              }
-                                              className="flex items-center gap-2 text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors"
-                                            >
-                                              <Award className="w-4 h-4" />
-                                              Passer le quiz de ce module
-                                            </button>
+                                        <div
+                                          onClick={() =>
+                                            handleSelectContent(module.id, c)
+                                          }
+                                          className={`w-full flex items-center gap-3 px-6 py-3 text-left ${
+                                            !canAccess
+                                              ? "cursor-not-allowed"
+                                              : "cursor-pointer"
+                                          }`}
+                                        >
+                                          {/* Icône état */}
+                                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-white/5">
+                                            {!canAccess ? (
+                                              <Lock className="w-3.5 h-3.5 text-slate-600" />
+                                            ) : (
+                                              <ContentIcon
+                                                type={c.type}
+                                                className={`w-3.5 h-3.5 ${isDone ? "opacity-90" : ""}`}
+                                              />
+                                            )}
                                           </div>
-                                        )}
-                                      </motion.button>
+                                          {/* Infos */}
+                                          <div className="flex-1 min-w-0">
+                                            <p
+                                              className={`text-sm font-medium truncate ${
+                                                isSelected
+                                                  ? "text-blue-400"
+                                                  : isDone
+                                                    ? "text-slate-500"
+                                                    : "text-slate-300"
+                                              }`}
+                                            >
+                                              {c.title}
+                                            </p>
+                                            {c.summary && (
+                                              <p className="text-xs text-slate-600 truncate">
+                                                {c.summary}
+                                              </p>
+                                            )}
+                                          </div>
+                                          {/* Badges */}
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            {c.duration > 0 && (
+                                              <span className="text-xs text-slate-600">
+                                                {c.duration} min
+                                              </span>
+                                            )}
+                                            {isDone && (
+                                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
+                                                ✓ Terminé
+                                              </span>
+                                            )}
+                                            {isSelected && !isDone && (
+                                              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                En cours
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </motion.div>
                                     );
                                   })}
                                 </div>

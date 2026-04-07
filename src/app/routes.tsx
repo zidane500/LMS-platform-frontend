@@ -24,6 +24,8 @@ import { Reports } from "./pages/Reports";
 import { NotFound } from "./pages/NotFound";
 import { Quiz } from "./pages/Quiz";
 import { EditQuiz } from "./pages/EditQuiz";
+import { InstructorProgress } from "./pages/InstructorProgress";
+import { BadgesPage } from "./pages/BadgesPage";
 
 export const router = createBrowserRouter([
   {
@@ -110,6 +112,14 @@ export const router = createBrowserRouter([
       {
         path: "certificates",
         Component: Certificates,
+      },
+      {
+        path: "instructor/progress",
+        Component: InstructorProgress,
+      },
+      {
+        path: "badges",
+        Component: BadgesPage,
       },
       {
         path: "reports",

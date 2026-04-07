@@ -128,7 +128,7 @@ export const CreateCourse: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-black-50 to-blue-50/30">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         <Button
           variant="ghost"
@@ -285,7 +285,7 @@ export const CreateCourse: React.FC = () => {
                     <img
                       src={formData.thumbnail}
                       alt="Aperçu miniature"
-                      className="w-full h-48 object-cover rounded-lg mt-2 border"
+                      className="w-full h-48 object-cover object-center rounded-lg mt-2 border bg-white"
                       onError={(e) => {
                         e.currentTarget.src =
                           "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80";
