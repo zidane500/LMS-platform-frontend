@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Lock, Star, Zap, Trophy } from "lucide-react";
+import { Lock, Star, Zap, Trophy, CheckCircle } from "lucide-react";
 import { Badge, BadgeTier } from "./BadgesData";
 
 interface BadgeCardProps {
@@ -41,8 +41,13 @@ const tierConfig: Record<
 
 export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
   const [hovered, setHovered] = useState(false);
+
   const isLocked = badge.status === "locked";
   const isInProgress = badge.status === "in-progress";
+  const isUnlocked = badge.status === "unlocked";
+
+  const progress = (badge as any).progress ?? 0;
+
   const tier = tierConfig[badge.tier];
 
   const TierIcon =
@@ -65,7 +70,7 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
       onClick={() => onSelect(badge)}
       className="relative cursor-pointer group"
     >
-      {/* Glow effect behind card */}
+      {/* Glow effect */}
       <AnimatePresence>
         {hovered && !isLocked && (
           <motion.div
@@ -78,7 +83,7 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
         )}
       </AnimatePresence>
 
-      {/* Legendary shimmer border */}
+      {/* Legendary border */}
       {badge.tier === "legendary" && !isLocked && (
         <div className="absolute inset-0 rounded-2xl z-0 overflow-hidden">
           <motion.div
@@ -93,7 +98,7 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
         </div>
       )}
 
-      {/* Card body */}
+      {/* Card */}
       <div
         className={`relative z-10 rounded-2xl border backdrop-blur-md overflow-hidden transition-all duration-300
           ${tier.border}
@@ -107,12 +112,10 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
               : "0 4px 20px rgba(0,0,0,0.3)",
         }}
       >
-        {/* Shine gradient overlay */}
         <div
           className={`absolute inset-0 bg-gradient-to-br ${tier.shine} pointer-events-none`}
         />
 
-        {/* Top accent line */}
         {!isLocked && (
           <div
             className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${badge.gradient} opacity-70`}
@@ -120,7 +123,7 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
         )}
 
         <div className="p-5 flex flex-col items-center gap-3">
-          {/* Badge Icon */}
+          {/* ICON */}
           <div className="relative">
             <motion.div
               animate={
@@ -138,31 +141,50 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
               `}
               style={{
                 boxShadow: !isLocked ? `0 4px 16px ${badge.glowColor}` : "none",
+                filter:
+                  isLocked && !isInProgress
+                    ? "grayscale(1) opacity(0.4)"
+                    : "none",
               }}
             >
-              {isLocked ? (
-                <span className="opacity-20 text-3xl">{badge.icon}</span>
+              {isLocked && !isInProgress ? (
+                <Lock className="w-6 h-6 text-slate-600" />
               ) : (
                 <span className="drop-shadow-lg">{badge.icon}</span>
               )}
-              {/* Inner shine */}
+
               {!isLocked && (
                 <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
               )}
             </motion.div>
 
-            {/* Lock overlay */}
-            {isLocked && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-[rgba(0,0,0,0.5)]">
-                <Lock className="w-5 h-5 text-slate-500" />
+            {/* ✅ Unlocked check */}
+            {isUnlocked && (
+              <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+                <CheckCircle className="w-3 h-3 text-white" />
               </div>
             )}
 
-            {/* Tier indicator */}
+            {/* 🔄 Progress indicator */}
+            {isInProgress && (
+              <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                <span className="text-[8px] font-bold text-white">
+                  {progress}%
+                </span>
+              </div>
+            )}
+
+            {/* Tier */}
             {badge.tier !== "common" && (
               <div
-                className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center
-                  ${badge.tier === "legendary" ? "bg-amber-400" : badge.tier === "epic" ? "bg-violet-500" : "bg-blue-500"}
+                className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center
+                  ${
+                    badge.tier === "legendary"
+                      ? "bg-amber-400"
+                      : badge.tier === "epic"
+                        ? "bg-violet-500"
+                        : "bg-blue-500"
+                  }
                 `}
               >
                 <TierIcon className="w-2.5 h-2.5 text-white" fill="white" />
@@ -170,7 +192,7 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
             )}
           </div>
 
-          {/* Name */}
+          {/* NAME */}
           <div className="text-center">
             <p
               className={`text-sm font-semibold leading-tight ${
@@ -179,16 +201,18 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
             >
               {badge.name}
             </p>
-            {/* Tier label */}
+
             <span
-              className={`text-[10px] uppercase tracking-widest font-medium mt-0.5 block ${tier.starColor} ${isLocked ? "opacity-40" : ""}`}
+              className={`text-[10px] uppercase tracking-widest font-medium mt-0.5 block ${tier.starColor} ${
+                isLocked ? "opacity-40" : ""
+              }`}
             >
               {tier.label}
             </span>
           </div>
 
-          {/* XP Reward */}
-          {!isLocked && (
+          {/* XP */}
+          {isUnlocked && (
             <div
               className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide
                 bg-gradient-to-r ${badge.gradient} text-white`}
@@ -197,32 +221,46 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
             </div>
           )}
 
-          {/* Progress bar for in-progress */}
-          {isInProgress && badge.progress !== undefined && (
+          {/* PROGRESS BAR */}
+          {!isUnlocked && (
             <div className="w-full mt-1">
               <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] text-slate-400">Progression</span>
-                <span className="text-[10px] text-white font-semibold">
-                  {badge.progress}%
+                <span className="text-[10px] text-slate-400">
+                  {isInProgress ? "En cours" : "Verrouillé"}
+                </span>
+                <span className="text-[10px] font-semibold text-white">
+                  {progress}%
                 </span>
               </div>
+
               <div className="w-full h-1.5 rounded-full bg-[rgba(255,255,255,0.08)] overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${badge.progress}%` }}
+                  animate={{ width: `${progress}%` }}
                   transition={{
                     duration: 1,
                     delay: index * 0.05 + 0.3,
                     ease: "easeOut",
                   }}
-                  className={`h-full rounded-full bg-gradient-to-r ${badge.gradient}`}
+                  className="h-full rounded-full"
+                  style={{
+                    background: isInProgress
+                      ? "linear-gradient(90deg, #f59e0b, #f97316)"
+                      : "rgba(100,116,139,0.4)",
+                  }}
                 />
               </div>
+
+              {(badge as any).progressDetail && (
+                <p className="text-[9px] text-slate-500 mt-1 text-center">
+                  {(badge as any).progressDetail}
+                </p>
+              )}
             </div>
           )}
 
-          {/* Unlocked date */}
-          {badge.status === "unlocked" && badge.unlockedAt && (
+          {/* DATE */}
+          {isUnlocked && badge.unlockedAt && (
             <p className="text-[10px] text-slate-500 mt-0.5">
               Obtenu le {new Date(badge.unlockedAt).toLocaleDateString("fr-FR")}
             </p>

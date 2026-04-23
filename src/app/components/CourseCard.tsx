@@ -10,6 +10,7 @@ import { Button } from "./ui/button";
 interface CourseCardProps {
   course: Course;
   progress?: number;
+  isEnrolled?: boolean;
   onEnroll?: () => void;
   onView: () => void;
   onEdit?: () => void;
@@ -20,6 +21,7 @@ interface CourseCardProps {
 export const CourseCard: React.FC<CourseCardProps> = ({
   course,
   progress,
+  isEnrolled = false,
   onEnroll,
   onView,
   onEdit,
@@ -130,7 +132,27 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           </div>
         </CardContent>
 
-        <CardFooter className="p-6 pt-0">
+        <CardFooter className="p-6 pt-0 flex flex-col gap-2">
+          {isEnrolled && (
+            <span className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800 self-center">
+              {" "}
+              <svg
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              Vous êtes inscrit
+            </span>
+          )}
+
           <motion.div
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}

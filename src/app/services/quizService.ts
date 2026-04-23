@@ -37,7 +37,8 @@ export interface QuizApi {
 
 export interface ReponsePassee {
   question_id: string;
-  choix_id?: string | null;
+  choix_id?: string | null; // compat. ancienne version (vrai_faux)
+  choix_ids?: string[] | null; //  NOUVEAU : multi-réponses QCM
   reponse_texte?: string;
 }
 

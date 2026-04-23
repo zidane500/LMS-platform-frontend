@@ -25,6 +25,18 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (!currentUser) return null;
+  const getRoleLabel = (role?: string): string => {
+    switch (role) {
+      case "learner":
+        return "Apprenant";
+      case "instructor":
+        return "Formateur";
+      case "admin":
+        return "Admin";
+      default:
+        return "Utilisateur";
+    }
+  };
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -46,7 +58,7 @@ export const Navbar: React.FC = () => {
     { path: "/app/profile", label: "Profil", icon: User },
   ];
 
-  if (currentUser.role === "learner") {
+  if (currentUser.role === "learner" || currentUser.role === "instructor") {
     navItems.push({
       path: "/app/certificates",
       label: "Certificats",
@@ -122,8 +134,8 @@ export const Navbar: React.FC = () => {
               <p className="text-sm font-medium dark:text-white">
                 {currentUser.firstName} {currentUser.lastName}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                {currentUser.role}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {getRoleLabel(currentUser.role)}
               </p>
             </div>
             <Avatar>

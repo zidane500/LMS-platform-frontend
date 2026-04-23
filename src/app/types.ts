@@ -1,12 +1,12 @@
-export type UserRole = 'admin' | 'instructor' | 'learner';
+export type UserRole = "admin" | "instructor" | "learner";
 
-export type InstructorRequestStatus = 'pending' | 'accepted' | 'rejected';
+export type InstructorRequestStatus = "pending" | "accepted" | "rejected";
 
-export type CourseLevel = 'Débutant' | 'Intermédiaire' | 'Avancé';
+export type CourseLevel = "Débutant" | "Intermédiaire" | "Avancé";
 
-export type ContentType = 'video' | 'pdf' | 'scorm' | 'audio';
+export type ContentType = "video" | "pdf" | "scorm" | "audio";
 
-export type QuestionType = 'mcq' | 'true-false' | 'text';
+export type QuestionType = "mcq" | "true-false" | "text";
 
 export interface User {
   id: string;
@@ -27,15 +27,25 @@ export interface User {
 export interface InstructorRequest {
   id: string;
   userId: string;
-  user?: User;
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
   specialty: string;
   experience: number;
   motivation: string;
   languages: string[];
-  cvUrl: string;
-  certificateUrl: string;
+
+  cvUrl?: string;
+  certificateUrl?: string;
+
+  cvUrls?: string[];
+  attestationUrls?: string[];
   status: InstructorRequestStatus;
-  createdAt: string;
+  createdAt?: string;
+  processedAt?: string;
 }
 
 export interface Course {

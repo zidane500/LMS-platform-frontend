@@ -272,6 +272,7 @@ export const Courses: React.FC = () => {
                 >
                   <CourseCard
                     course={course}
+                    isEnrolled={(course as any).isEnrolled ?? false}
                     onView={() => navigate(`/app/courses/${course.id}`)}
                     onEdit={
                       canEditCourse(course)

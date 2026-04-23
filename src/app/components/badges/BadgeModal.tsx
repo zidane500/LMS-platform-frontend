@@ -252,13 +252,6 @@ export function BadgeModal({ badge, onClose }: BadgeModalProps) {
                     Badge verrouillé — Continuez votre progression !
                   </button>
                 )}
-                {!isLocked && (
-                  <button
-                    className={`w-full py-3 rounded-xl bg-gradient-to-r ${badge.gradient} text-white text-sm font-semibold transition-opacity hover:opacity-90`}
-                  >
-                    {isInProgress ? "Voir ma progression" : "Partager ce badge"}
-                  </button>
-                )}
               </div>
             </div>
           </motion.div>

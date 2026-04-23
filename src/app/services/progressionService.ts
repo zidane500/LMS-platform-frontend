@@ -65,3 +65,10 @@ export async function getProgressionFormateur(formationId: string) {
   const res = await api.get(`/progression/${formationId}/formateur`);
   return res.data;
 }
+
+export async function getBadgeProgression(): Promise<
+  Record<string, { progress: number; detail: string }>
+> {
+  const res = await api.get("/progression/badges-progress");
+  return res.data;
+}

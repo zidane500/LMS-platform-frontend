@@ -81,7 +81,9 @@ export async function getFormations(params?: {
     queryParams.categorie = params.categorie;
   if (params?.niveau && params.niveau !== "all")
     queryParams.niveau = params.niveau;
-  if (params?.mine) queryParams.mine = "true";
+  if (params?.mine !== undefined) {
+    queryParams.mine = params.mine ? "true" : "false";
+  }
   if (params?.statut && params.statut !== "all")
     queryParams.statut = params.statut;
   if (params?.formateur_id && params.formateur_id !== "all")

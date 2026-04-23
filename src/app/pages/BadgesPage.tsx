@@ -69,25 +69,15 @@ export function BadgesPage() {
     const load = async () => {
       try {
         const progressions = await getMesProgressions();
-
-        // Charger badges de toutes les formations
         const details = await Promise.all(
           progressions.map((p) =>
             getProgression(p.formation_id).catch(() => null),
           ),
         );
-
         const badgesObtenus = details.flatMap((d) => d?.badges ?? []);
-
-        // Créer un Set des codes obtenus
-        const codesObtenus = new Set(badgesObtenus.map((b) => b.code));
-
-        // Mapper les badges obtenus
         const badgesMapped: Badge[] = badgesObtenus.map((b) =>
           mapBackendBadge(b, "unlocked"),
         );
-
-        // Dédupliquer (garder le plus récent si même code)
         const dedup = new Map<string, Badge>();
         badgesMapped.forEach((b) => {
           if (
@@ -99,17 +89,9 @@ export function BadgesPage() {
             dedup.set(b.id, b);
           }
         });
-
-        // Ajouter les badges du catalogue non obtenus (status: locked)
         badgesCatalogue.forEach((b) => {
-          if (!dedup.has(b.id)) {
-            dedup.set(b.id, {
-              ...b,
-              status: "locked",
-            });
-          }
+          if (!dedup.has(b.id)) dedup.set(b.id, { ...b, status: "locked" });
         });
-
         setAllBadges(Array.from(dedup.values()));
       } catch {
         toast.error("Impossible de charger les badges");
@@ -208,9 +190,6 @@ export function BadgesPage() {
                   <Trophy className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-violet-400 font-semibold">
-                    LMS Platform
-                  </p>
                   <h1 className="text-white text-2xl font-bold tracking-tight">
                     Mes Badges & Récompenses
                   </h1>
@@ -585,9 +564,8 @@ export function BadgesPage() {
         </motion.div>
 
         <div className="mt-16 pt-8 border-t border-white/5 text-center">
-          <p className="text-[11px] text-slate-600">
-            LMS Platform · Système de badges & récompenses · {allBadges.length}{" "}
-            badges disponibles
+          <p className="text-[19px] text-slate-600">
+            LMS Platform · Système de badges & récompenses
           </p>
         </div>
       </div>

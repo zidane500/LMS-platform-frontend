@@ -26,6 +26,7 @@ import { Quiz } from "./pages/Quiz";
 import { EditQuiz } from "./pages/EditQuiz";
 import { InstructorProgress } from "./pages/InstructorProgress";
 import { BadgesPage } from "./pages/BadgesPage";
+import { VerifyCertificate } from "./pages/VerifyCertificate";
 
 export const router = createBrowserRouter([
   {
@@ -126,6 +127,10 @@ export const router = createBrowserRouter([
         Component: Reports,
       },
     ],
+  },
+  {
+    path: "/verify/:numero",
+    Component: VerifyCertificate,
   },
   {
     path: "*",

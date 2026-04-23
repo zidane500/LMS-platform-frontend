@@ -1,47 +1,41 @@
-// src/app/services/demandeService.ts
-//
-// Fonctions API pour les demandes formateur
-// US 1.4 : Soumettre une demande
-// US 1.5 : Lister/traiter les demandes (admin)
+import api from "./api";
+import type { InstructorRequest } from "../types";
 
-import api from './api';
-import { InstructorRequest, InstructorRequestStatus } from '../types';
-
-// ─── Mapper backend → frontend ────────────────────────────
-function mapApiDemande(d: any): InstructorRequest {
-  const statusMap: Record<string, InstructorRequestStatus> = {
-    en_attente: 'pending',
-    acceptee:   'accepted',
-    refusee:    'rejected',
-  };
-
+// ── Mapper backend → frontend ──────────────────────────────
+function mapDemande(d: any): InstructorRequest {
   return {
-    id:          String(d.id),
-    userId:      String(d.user_id),
-    user:        d.user ? {
-      id:        String(d.user.id),
-      email:     d.user.email,
-      firstName: d.user.prenom,
-      lastName:  d.user.nom,
-      dateOfBirth: '',
-      phone: '',
-      preferredLanguage: 'fr',
-      targetDomains: [],
-      technologies: [],
-      role: 'learner',
-    } : undefined,
-    specialty:    d.specialite,
-    experience:   d.experience_annees,
-    motivation:   d.motivation,
-    languages:    d.langues_enseignees ?? [],
-    cvUrl:        Array.isArray(d.cv_urls) ? d.cv_urls[0] ?? '' : d.cv_url ?? '',
-    certificateUrl: Array.isArray(d.attestation_urls) ? d.attestation_urls[0] ?? '' : d.attestation_url ?? '',
-    status:       statusMap[d.statut] ?? 'pending',
-    createdAt:    d.date_demande ?? '',
+    id: String(d.id),
+    userId: String(d.user_id),
+    user: d.user
+      ? {
+          id: String(d.user.id),
+          firstName: d.user.prenom,
+          lastName: d.user.nom,
+          email: d.user.email,
+        }
+      : undefined,
+    specialty: d.specialite,
+    experience: d.experience_annees,
+    motivation: d.motivation,
+    languages: d.langues_enseignees ?? [],
+    // ✅ Tableaux complets
+    cvUrls: d.cv_urls ?? [],
+    attestationUrls: d.attestation_urls ?? [],
+    // Rétrocompat (premier fichier)
+    cvUrl: d.cv_urls?.[0] ?? undefined,
+    certificateUrl: d.attestation_urls?.[0] ?? undefined,
+    status:
+      d.statut === "en_attente"
+        ? "pending"
+        : d.statut === "acceptee"
+          ? "accepted"
+          : "rejected",
+    createdAt: d.date_demande ?? undefined,
+    processedAt: d.date_traitement ?? undefined,
   };
 }
 
-// ─── US 1.4 : Soumettre une demande (avec fichiers PDF) ───
+// ── Apprenant : soumettre une demande ──────────────────────
 export async function submitInstructorRequest(data: {
   specialty: string;
   experience: number;
@@ -51,44 +45,53 @@ export async function submitInstructorRequest(data: {
   certificateFiles: File[];
 }): Promise<InstructorRequest> {
   const fd = new FormData();
-  fd.append('specialite',          data.specialty);
-  fd.append('experience_annees',   String(data.experience));
-  fd.append('motivation',          data.motivation);
-  data.languages.forEach(l => fd.append('langues_enseignees[]', l));
-  data.cvFiles.forEach(file => fd.append('cv[]', file));
-  data.certificateFiles.forEach(file => fd.append('attestation[]', file));
+  fd.append("specialite", data.specialty);
+  fd.append("experience_annees", String(data.experience));
+  fd.append("motivation", data.motivation);
+  data.languages.forEach((l) => fd.append("langues_enseignees[]", l));
+  // ✅ Tous les fichiers CV
+  data.cvFiles.forEach((f) => fd.append("cv[]", f));
+  // ✅ Tous les fichiers attestation
+  data.certificateFiles.forEach((f) => fd.append("attestation[]", f));
 
-  const res = await api.post('/instructor-requests', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+  const res = await api.post("/instructor-requests", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
   });
-  return mapApiDemande(res.data.demande);
+  return mapDemande(res.data.demande);
 }
 
-// ─── US 1.4 : Voir le statut de ma propre demande ─────────
+// ── Apprenant : voir sa demande ────────────────────────────
 export async function getMyRequest(): Promise<InstructorRequest | null> {
-  const res = await api.get('/instructor-requests/my');
-  return res.data.demande ? mapApiDemande(res.data.demande) : null;
+  const res = await api.get("/instructor-requests/my");
+  if (!res.data.demande) return null;
+  return mapDemande(res.data.demande);
 }
 
-// ─── US 1.5 (admin) : Lister toutes les demandes ──────────
-export async function getAllRequests(statut?: string): Promise<InstructorRequest[]> {
-  const params: Record<string, string> = {};
-  if (statut && statut !== 'all') params.statut = statut;
-  const res = await api.get('/instructor-requests', { params });
-  return res.data.map(mapApiDemande);
+// ── Admin : toutes les demandes ────────────────────────────
+export async function getAllRequests(): Promise<InstructorRequest[]> {
+  const res = await api.get("/instructor-requests");
+  return res.data.map(mapDemande);
 }
 
-// ─── US 1.5 (admin) : Accepter ou refuser ─────────────────
+// ── Admin : traiter une demande ────────────────────────────
+// ✅ Fix 3 — commentaire optionnel ajouté
 export async function processRequest(
   id: string,
-  action: 'accepter' | 'refuser'
+  action: "accepter" | "refuser",
+  commentaire?: string,
 ): Promise<InstructorRequest> {
-  const res = await api.post(`/instructor-requests/${id}/process`, { action });
-  return mapApiDemande(res.data.demande);
+  const res = await api.post(`/instructor-requests/${id}/process`, {
+    action,
+    commentaire_admin: commentaire ?? null,
+  });
+  return mapDemande(res.data.demande);
 }
 
-// ─── US 1.5 (admin) : URL du fichier PDF ──────────────────
-export async function getFileUrl(id: string, type: 'cv' | 'attestation'): Promise<string> {
+// ── Admin : URL d'un fichier ───────────────────────────────
+export async function getFileUrl(
+  id: string,
+  type: "cv" | "attestation",
+): Promise<string> {
   const res = await api.get(`/instructor-requests/${id}/file/${type}`);
   return res.data.url;
 }

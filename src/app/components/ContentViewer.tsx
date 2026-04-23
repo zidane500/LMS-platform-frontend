@@ -10,6 +10,7 @@ import { Progress } from "./ui/progress";
 import { marquerConsulte } from "../services/contenuService";
 import { toast } from "sonner";
 import type { Content } from "../types";
+import { toastQueue } from "../utils/toastQueue";
 
 interface ContentViewerProps {
   content: Content & {
@@ -63,13 +64,15 @@ export const ContentViewer: React.FC<ContentViewerProps> = ({
         100,
       )) as any;
       setIsComplete(true);
-      toast.success("✅ Contenu marqué comme terminé !");
+      toast.success("Contenu marqué comme terminé !");
 
+      // ✅ NOUVEAU — déduplique par code badge
       if (res?.nouveaux_badges?.length > 0) {
+        const seen = new Set<string>();
         res.nouveaux_badges.forEach((badge: any) => {
-          toast.success(`🏆 Nouveau badge : ${badge.icone} ${badge.nom} !`, {
-            duration: 5000,
-          });
+          if (!seen.has(badge.code)) {
+            seen.add(badge.code);
+          }
         });
       }
 
@@ -147,9 +150,41 @@ export const ContentViewer: React.FC<ContentViewerProps> = ({
 
       // ── PDF ────────────────────────────────────────────────
       case "pdf": {
+        // Détecter vrai PDF ou document externe
+        const isPdfFile =
+          content.url.toLowerCase().includes(".pdf") ||
+          content.url.includes("/storage/");
+
+        const isExternalDoc = !isPdfFile;
+
+        // Si document externe
+        if (isExternalDoc) {
+          return (
+            <div className="space-y-3">
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-6 text-center">
+                <div className="text-5xl mb-3">📄</div>
+
+                <p className="text-sm text-blue-800 dark:text-blue-300 mb-4 font-medium">
+                  Document externe
+                </p>
+
+                <a
+                  href={content.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Ouvrir le document
+                </a>
+              </div>
+            </div>
+          );
+        }
+
+        // Si vrai PDF local
         return (
           <div className="space-y-3">
-            {/* Visionneuse PDF intégrée */}
             <div className="w-full rounded-xl overflow-hidden border dark:border-slate-700 bg-gray-100 dark:bg-slate-800">
               <iframe
                 src={`${content.url}#toolbar=1&navpanes=0`}
@@ -158,7 +193,7 @@ export const ContentViewer: React.FC<ContentViewerProps> = ({
                 title={content.title}
               />
             </div>
-            {/* Bouton ouvrir dans un nouvel onglet */}
+
             <a
               href={content.url}
               target="_blank"
@@ -171,7 +206,6 @@ export const ContentViewer: React.FC<ContentViewerProps> = ({
           </div>
         );
       }
-
       // ── Audio ──────────────────────────────────────────────
       case "audio": {
         // ✅ Même fix que la vidéo — streaming pour les fichiers locaux

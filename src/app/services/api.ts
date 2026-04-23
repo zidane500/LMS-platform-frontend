@@ -6,11 +6,10 @@
 import axios from "axios";
 
 // L'URL de base du backend Laravel (port 8000 par défaut)
-const API_BASE_URL = "http://localhost:8000/api";
 
 // Création de l'instance Axios
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: "/api",
   headers: {
     Accept: "application/json",
     // Content-Type retiré : Axios le gère automatiquement

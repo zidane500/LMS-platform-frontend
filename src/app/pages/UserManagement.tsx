@@ -187,60 +187,76 @@ export const UserManagement: React.FC = () => {
           </Card>
         ) : (
           <div className="grid gap-4">
-            {users.map((user) => (
-              <motion.div
-                key={user.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <Card className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <Avatar className="w-12 h-12 shrink-0">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                            {user.firstName[0]}
-                            {user.lastName[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 dark:text-white truncate">
-                            {user.firstName} {user.lastName}
-                          </p>
-                          <p className="text-sm text-gray-500 truncate">
-                            {user.email}
-                          </p>
+            {[...users]
+              .sort((a, b) => {
+                if (
+                  (a.role || "learner") === "admin" &&
+                  (b.role || "learner") !== "admin"
+                )
+                  return -1;
+                if (
+                  (a.role || "learner") !== "admin" &&
+                  (b.role || "learner") === "admin"
+                )
+                  return 1;
+                return 0;
+              })
+              .map((user) => (
+                <motion.div
+                  key={user.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <Card className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <Avatar className="w-12 h-12 shrink-0">
+                            <AvatarImage src={user.avatar} />
+                            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                              {user.firstName[0]}
+                              {user.lastName[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                              {user.firstName} {user.lastName}
+                            </p>
+                            <p className="text-sm text-gray-500 truncate">
+                              {user.email}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <Badge className={roleBadgeClass(user.role)}>
-                          {roleLabel(user.role)}
-                        </Badge>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditingUser({ ...user })}
-                          className="gap-1"
-                        >
-                          <Edit2 className="w-3 h-3" /> Modifier
-                        </Button>
-                        {user.id !== currentUser.id && (
+                        <div className="flex items-center gap-3 shrink-0">
+                          <Badge
+                            className={roleBadgeClass(user.role || "learner")}
+                          >
+                            {roleLabel(user.role || "learner")}
+                          </Badge>
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
-                            onClick={() => setUserToDelete(user)}
+                            onClick={() => setEditingUser({ ...user })}
                             className="gap-1"
                           >
-                            <Trash2 className="w-3 h-3" /> Supprimer
+                            <Edit2 className="w-3 h-3" /> Modifier
                           </Button>
-                        )}
+                          {user.id !== currentUser.id && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setUserToDelete(user)}
+                              className="gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" /> Supprimer
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
           </div>
         )}
       </div>

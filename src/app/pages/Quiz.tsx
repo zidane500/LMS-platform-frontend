@@ -33,6 +33,7 @@ import type {
   ResultatQuiz,
   ReponsePassee,
 } from "../services/quizService";
+import { toastQueue } from "../utils/toastQueue";
 
 export const Quiz: React.FC = () => {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ export const Quiz: React.FC = () => {
 
   // Réponses en cours
   const [reponses, setReponses] = useState<
-    Record<string, { choix_id?: string; texte?: string }>
+    Record<string, { choix_ids?: string[]; texte?: string }>
   >({});
   const [currentQ, setCurrentQ] = useState(0);
 
@@ -155,11 +156,40 @@ export const Quiz: React.FC = () => {
   const progress = ((currentQ + 1) / totalQuestions) * 100;
 
   // Répondre
-  const setReponse = (questionId: string, choixId?: string, texte?: string) => {
-    setReponses((prev) => ({
-      ...prev,
-      [questionId]: { choix_id: choixId, texte },
-    }));
+  // Pour QCM : toggle multi-sélection | Pour vrai_faux : sélection unique
+  const setReponse = (
+    questionId: string,
+    choixId?: string,
+    texte?: string,
+    isMulti: boolean = false,
+  ) => {
+    if (texte !== undefined) {
+      setReponses((prev) => ({ ...prev, [questionId]: { texte } }));
+      return;
+    }
+    if (!choixId) return;
+
+    if (isMulti) {
+      // ✅ Comportement checkbox : toggle
+      setReponses((prev) => {
+        const current = prev[questionId]?.choix_ids ?? [];
+        const alreadySelected = current.includes(choixId);
+        return {
+          ...prev,
+          [questionId]: {
+            choix_ids: alreadySelected
+              ? current.filter((id) => id !== choixId)
+              : [...current, choixId],
+          },
+        };
+      });
+    } else {
+      // Comportement radio : sélection unique (vrai_faux)
+      setReponses((prev) => ({
+        ...prev,
+        [questionId]: { choix_ids: [choixId] },
+      }));
+    }
   };
 
   // Soumettre
@@ -168,11 +198,18 @@ export const Quiz: React.FC = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     setSubmitting(true);
     try {
-      const reponsesArray: ReponsePassee[] = quiz.questions.map((q) => ({
-        question_id: q.id!,
-        choix_id: reponses[q.id!]?.choix_id ?? null,
-        reponse_texte: reponses[q.id!]?.texte,
-      }));
+      const reponsesArray: ReponsePassee[] = quiz.questions.map((q) => {
+        const rep = reponses[q.id!];
+        const choixIds = rep?.choix_ids ?? [];
+        return {
+          question_id: q.id!,
+          // ✅ Pour vrai_faux on envoie aussi choix_id (rétrocompat backend)
+          choix_id: q.type === "vrai_faux" ? (choixIds[0] ?? null) : null,
+          // ✅ Pour QCM on envoie le tableau
+          choix_ids: q.type === "qcm" ? choixIds : null,
+          reponse_texte: rep?.texte,
+        };
+      });
       const res = await passerQuiz(
         courseId!,
         moduleId!,
@@ -183,13 +220,14 @@ export const Quiz: React.FC = () => {
       setResultat(res);
       if ((res as any).nouveaux_badges?.length > 0) {
         (res as any).nouveaux_badges.forEach((badge: any) => {
-          toast.success(`🏆 Nouveau badge : ${badge.icone} ${badge.nom} !`, {
-            duration: 5000,
-          });
+          toastQueue.success(
+            `Nouveau badge : ${badge.icone} ${badge.nom} !`,
+            5000,
+          );
         });
       }
-      if (!auto) toast.success(res.reussi ? "Quiz réussi !" : "📊 Quiz soumis");
-      else toast.warning("⏱ Temps écoulé — quiz soumis automatiquement");
+      if (!auto) toast.success(res.reussi ? "Quiz réussi !" : "Quiz soumis");
+      else toast.warning("Temps écoulé — quiz soumis automatiquement");
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         toast.error(
@@ -228,6 +266,22 @@ export const Quiz: React.FC = () => {
                 <div className={`text-7xl font-bold ${pctColor}`}>
                   {resultat.pourcentage}%
                 </div>
+                {/* Juste après le pourcentage, ajoute */}
+                {resultat.reussi && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+                    <p className="text-green-400 text-sm font-medium">
+                      🎉 Seuil de réussite atteint : {resultat.seuil_reussite}%
+                    </p>
+                  </div>
+                )}
+                {!resultat.reussi && (
+                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3">
+                    <p className="text-orange-400 text-sm font-medium">
+                      Score insuffisant — Seuil requis :{" "}
+                      {resultat.seuil_reussite}%
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-center gap-2">
                   {resultat.reussi ? (
                     <>
@@ -246,8 +300,7 @@ export const Quiz: React.FC = () => {
                   )}
                 </div>
                 <p className="text-slate-400">
-                  Score : {resultat.score}/{resultat.score_max} points · Seuil :{" "}
-                  {resultat.seuil_reussite}%
+                  Score : {resultat.score}/{resultat.score_max} points
                 </p>
                 <div className="grid grid-cols-3 gap-4 pt-4">
                   <div className="bg-white/5 rounded-xl p-4">
@@ -277,40 +330,50 @@ export const Quiz: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  {/* ✅ Corrections visibles SEULEMENT si plus de tentatives disponibles */}
-                  {!resultat.peut_repasser && (
+                <div className="flex gap-3 pt-4 flex-wrap justify-center">
+                  {/* ✅ Voir corrections : plus de tentatives OU score 100% */}
+                  {(!resultat.peut_repasser ||
+                    resultat.pourcentage === 100) && (
                     <Button
                       variant="outline"
-                      className="flex-1 gap-2 border-white/10 text-slate-300"
+                      className="inline-flex items-center gap-1 px-3 py-1"
                       onClick={() => setShowCorrections(!showCorrections)}
                     >
                       {showCorrections ? "Masquer" : "Voir"} les corrections
                     </Button>
                   )}
-                  {resultat.peut_repasser && (
-                    <Button
-                      className="flex-1 gap-2 bg-purple-600 hover:bg-purple-700"
-                      onClick={() => {
-                        setResultat(null);
-                        setReponses({});
-                        setCurrentQ(0);
-                        setTempsEcoule(0);
-                        const duree = quiz.duree_minutes ?? 0;
-                        if (duree > 0) {
-                          setTempsRestant(duree * 60);
-                          tempsRestantRef.current = duree * 60;
-                        } else {
-                          setTempsRestant(null);
-                          tempsRestantRef.current = null;
-                        }
-                      }}
-                    >
-                      <RotateCcw className="w-4 h-4" /> Réessayer
-                    </Button>
-                  )}
-                  <Button className="flex-1 gap-2" onClick={() => navigate(-1)}>
-                    <ArrowLeft className="w-4 h-4" /> Retour
+
+                  {/* Réessayer — seulement si peut repasser ET quiz non réussi ET pas 100% */}
+                  {resultat.peut_repasser &&
+                    !resultat.reussi &&
+                    resultat.pourcentage < 100 && (
+                      <Button
+                        className="flex-1 gap-2 bg-purple-600 hover:bg-purple-700"
+                        onClick={() => {
+                          setResultat(null);
+                          setReponses({});
+                          setCurrentQ(0);
+                          setTempsEcoule(0);
+                          const duree = quiz.duree_minutes ?? 0;
+                          if (duree > 0) {
+                            setTempsRestant(duree * 60);
+                            tempsRestantRef.current = duree * 60;
+                          } else {
+                            setTempsRestant(null);
+                            tempsRestantRef.current = null;
+                          }
+                        }}
+                      >
+                        <RotateCcw className="w-4 h-4" /> Réessayer
+                      </Button>
+                    )}
+
+                  {/* Retour — toujours visible */}
+                  <Button
+                    className="inline-flex items-center gap-1 px-3 py-1"
+                    onClick={() => navigate(-1)}
+                  >
+                    <ArrowLeft className="w-4 h-4" /> Terminer
                   </Button>
                 </div>
               </CardContent>
@@ -445,7 +508,7 @@ export const Quiz: React.FC = () => {
                                   <p className="text-xs text-green-400 font-medium mb-1">
                                     ✅ Points forts
                                   </p>
-                                  <p className="text-xs text-slate-400">
+                                  <p className="text-sm text-slate-400">
                                     {c.points_forts}
                                   </p>
                                 </div>
@@ -456,7 +519,7 @@ export const Quiz: React.FC = () => {
                                   <p className="text-xs text-orange-400 font-medium mb-1">
                                     💡 À améliorer
                                   </p>
-                                  <p className="text-xs text-slate-400">
+                                  <p className="text-sm text-slate-400">
                                     {c.points_amelioration}
                                   </p>
                                 </div>
@@ -490,7 +553,7 @@ export const Quiz: React.FC = () => {
 
   // ── Interface quiz ────────────────────────────────────────
   const q = questions[currentQ];
-  const repCurrent = reponses[q.id!];
+  const repCurrent = reponses[q.id!]; // choix_ids[] ou texte
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950/20">
@@ -549,20 +612,76 @@ export const Quiz: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {/* QCM / Vrai-Faux */}
-                {(q.type === "qcm" || q.type === "vrai_faux") &&
+                {/* QCM — Checkbox (multi-sélection) */}
+                {q.type === "qcm" && (
+                  <>
+                    <p className="text-xs text-slate-500 mb-1">
+                      💡 Plusieurs réponses peuvent être correctes
+                    </p>
+                    {q.choix.map((c) => {
+                      const selected =
+                        repCurrent?.choix_ids?.includes(String(c.id)) ?? false;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() =>
+                            setReponse(q.id!, String(c.id), undefined, true)
+                          }
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                            selected
+                              ? "border-purple-500 bg-purple-500/10 text-white"
+                              : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10"
+                          }`}
+                        >
+                          {/* ✅ Carré = checkbox (multi) */}
+                          <div
+                            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              selected
+                                ? "border-purple-500 bg-purple-500"
+                                : "border-slate-600"
+                            }`}
+                          >
+                            {selected && (
+                              <svg
+                                className="w-3 h-3 text-white"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={3}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="font-medium">{c.texte}</span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Vrai/Faux — Radio (choix unique) */}
+                {q.type === "vrai_faux" &&
                   q.choix.map((c) => {
-                    const selected = repCurrent?.choix_id === String(c.id);
+                    const selected =
+                      repCurrent?.choix_ids?.includes(String(c.id)) ?? false;
                     return (
                       <button
                         key={c.id}
-                        onClick={() => setReponse(q.id!, String(c.id))}
+                        onClick={() =>
+                          setReponse(q.id!, String(c.id), undefined, false)
+                        }
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
                           selected
                             ? "border-purple-500 bg-purple-500/10 text-white"
                             : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10"
                         }`}
                       >
+                        {/* ✅ Rond = radio (unique) */}
                         <div
                           className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                             selected
@@ -616,7 +735,8 @@ export const Quiz: React.FC = () => {
                 className={`w-2.5 h-2.5 rounded-full transition-all ${
                   i === currentQ
                     ? "bg-purple-500 scale-125"
-                    : reponses[qq.id!]
+                    : (reponses[qq.id!]?.choix_ids?.length ?? 0) > 0 ||
+                        reponses[qq.id!]?.texte
                       ? "bg-purple-400/60"
                       : "bg-white/20"
                 }`}
@@ -652,7 +772,14 @@ export const Quiz: React.FC = () => {
 
         {/* Résumé des réponses */}
         <div className="text-center text-sm text-slate-500">
-          {Object.keys(reponses).length} / {totalQuestions} questions répondues
+          {
+            Object.entries(reponses).filter(
+              ([, v]) =>
+                (v.choix_ids && v.choix_ids.length > 0) ||
+                (v.texte && v.texte.trim() !== ""),
+            ).length
+          }{" "}
+          / {totalQuestions} questions répondues
         </div>
       </div>
     </div>

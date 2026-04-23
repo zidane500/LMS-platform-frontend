@@ -1,213 +1,349 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Bell, X, CheckCheck, Info, AlertCircle } from 'lucide-react';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-
-interface Notification {
-  id: string;
-  type: 'info' | 'success' | 'warning';
-  title: string;
-  message: string;
-  timestamp: Date;
-  read: boolean;
-}
-
-// Notifications mockées
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'success',
-    title: 'Formation complétée',
-    message: 'Félicitations ! Vous avez terminé la formation React Avancé.',
-    timestamp: new Date(Date.now() - 3600000),
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'info',
-    title: 'Nouveau module disponible',
-    message: 'Un nouveau module a été ajouté à votre formation en cours.',
-    timestamp: new Date(Date.now() - 7200000),
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'warning',
-    title: 'Quiz à compléter',
-    message: 'N\'oubliez pas de terminer le quiz du module 3.',
-    timestamp: new Date(Date.now() - 86400000),
-    read: true,
-  },
-];
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { Bell, CheckCheck, X, ChevronDown } from "lucide-react";
+import {
+  getNotifications,
+  getNonLues,
+  marquerLu,
+  marquerToutLu,
+  supprimerNotification,
+} from "../services/notificationService";
+import type { Notification } from "../services/notificationService";
+import { useAuth } from "../context/AuthContext";
 
 export const NotificationBell: React.FC = () => {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
-  const [isOpen, setIsOpen] = useState(false);
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const filterOptions = isAdmin
+    ? [
+        { value: "info", label: "Info" },
+        { value: "warning", label: "Signales" },
+      ]
+    : [
+        { value: "info", label: "Info" },
+        { value: "certificat", label: "Certificat" },
+        { value: "badge", label: "Badge" },
+        { value: "rappel", label: "Rappel" },
+      ];
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<string | null>(null);
+  const [showFilter, setShowFilter] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const activeFilterLabel =
+    filterOptions.find((option) => option.value === filter)?.label || null;
+
+  const loadCount = async () => {
+    if (!currentUser) return;
+    try {
+      setCount(await getNonLues());
+    } catch {}
+  };
+
+  const loadNotifications = async () => {
+    if (!currentUser) return;
+    try {
+      setNotifications(await getNotifications());
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadCount();
+    const interval = setInterval(loadCount, 30000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setShowFilter(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleOpen = () => {
+    setOpen((prev) => !prev);
+    if (!open) loadNotifications();
+  };
+
+  const handleLu = async (id: number) => {
+    await marquerLu(id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, lu: true } : n)),
     );
+    setCount((prev) => Math.max(0, prev - 1));
   };
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const handleToutLu = async () => {
+    await marquerToutLu();
+    setNotifications((prev) => prev.map((n) => ({ ...n, lu: true })));
+    setCount(0);
   };
 
-  const handleDeleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const getNotificationIcon = (type: Notification['type']) => {
+  const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'success':
-        return <CheckCheck className="w-5 h-5 text-green-600" />;
-      case 'warning':
-        return <AlertCircle className="w-5 h-5 text-yellow-600" />;
-      case 'info':
+      case "badge":
+        return "🏆";
+      case "certificat":
+        return "🎓";
+      case "success":
+        return "✅";
+      case "warning":
+        return "⚠️";
+      case "error":
+        return "🔴";
+      case "rappel":
+        return "⏰";
       default:
-        return <Info className="w-5 h-5 text-blue-600" />;
+        return "ℹ️";
     }
   };
 
-  const formatTimestamp = (date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (hours < 1) return 'À l\'instant';
-    if (hours < 24) return `Il y a ${hours}h`;
-    if (days === 1) return 'Hier';
-    return `Il y a ${days} jours`;
+  const getTypeBg = (type: string, isUnread: boolean) => {
+    if (!isUnread) return "";
+    switch (type) {
+      case "warning":
+        return "bg-yellow-50/40 dark:bg-yellow-950/20";
+      case "error":
+        return "bg-red-50/40 dark:bg-red-950/20";
+      case "badge":
+        return "bg-purple-50/40 dark:bg-purple-950/20";
+      case "certificat":
+        return "bg-green-50/40 dark:bg-green-950/20";
+      default:
+        return "bg-blue-50/40 dark:bg-blue-950/20";
+    }
   };
 
+  const getTypeDot = (type: string) => {
+    switch (type) {
+      case "warning":
+        return "bg-yellow-400";
+      case "error":
+        return "bg-red-500";
+      case "badge":
+        return "bg-purple-500";
+      case "certificat":
+        return "bg-green-500";
+      default:
+        return "bg-blue-500";
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "warning":
+        return { text: "Attention", cls: "text-yellow-500" };
+      case "error":
+        return { text: "Erreur", cls: "text-red-500" };
+      case "badge":
+        return { text: "Badge", cls: "text-purple-500" };
+      case "certificat":
+        return { text: "Certificat", cls: "text-green-500" };
+      case "rappel":
+        return { text: "Rappel", cls: "text-orange-400" };
+      default:
+        return { text: "Info", cls: "text-blue-500" };
+    }
+  };
+
+  const filteredNotifications = notifications.filter(
+    (notif) => !filter || notif.type?.toLowerCase() === filter.toLowerCase(),
+  );
+  const filterLabels: Record<string, string> = {
+    tout: "Tout",
+    info: "Info",
+    rappel: "Rappel", // ✅ NOUVEAU
+    certificat: "Certificat",
+    badge: "Badge",
+  };
+
+  // Et dans le filtre
+  const filtered = notifications.filter((n) => {
+    if (filter === "tout") return true;
+    if (filter === "info") return n.type === "info" || n.type === "success";
+    return n.type === filter;
+  });
+
   return (
-    <div className="relative">
-      {/* Bell Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative hover:bg-gray-100 dark:hover:bg-slate-800"
+    <div ref={ref} className="relative">
+      <button
+        onClick={handleOpen}
+        className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
       >
         <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-        {unreadCount > 0 && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1"
-          >
-            <Badge className="h-5 w-5 flex items-center justify-center p-0 bg-red-600 text-white text-xs">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </Badge>
-          </motion.div>
+        {count > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+            {count}
+          </span>
         )}
-      </Button>
+      </button>
 
-      {/* Notification Panel */}
       <AnimatePresence>
-        {isOpen && (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setIsOpen(false)}
-            />
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="absolute right-0 top-12 w-[420px] max-w-[95vw] z-50 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-visible"
+          >
+            <div className="relative flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700">
+              <span className="font-semibold text-sm dark:text-white">
+                🔔 Notifications
+              </span>
 
-            {/* Notification Dropdown */}
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className="absolute right-0 mt-2 w-96 z-50"
-            >
-              <Card className="shadow-2xl border border-gray-200 dark:border-slate-700 max-h-[32rem] overflow-hidden">
-                <CardHeader className="pb-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">Notifications</CardTitle>
-                    {unreadCount > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleMarkAllAsRead}
-                        className="text-xs text-blue-600 hover:text-blue-700"
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowFilter((prev) => !prev)}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700 whitespace-nowrap"
+                  >
+                    {activeFilterLabel
+                      ? `Filtre: ${activeFilterLabel}`
+                      : "Filtrer par"}
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+
+                  {showFilter && (
+                    <div className="absolute left-1/2 top-full mt-3 -translate-x-1/2 w-35 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[80] overflow-hidden">
+                      {filterOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setFilter(option.value);
+                            setShowFilter(false);
+                          }}
+                          className={`w-full text-left px-2 py-1 text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 ${
+                            filter === option.value
+                              ? "bg-gray-200 dark:bg-slate-700"
+                              : ""
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilter(null);
+                          setShowFilter(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-base font-medium  hover:bg-gray-100 dark:hover:bg-slate-700"
                       >
-                        Tout marquer comme lu
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
+                        Tout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                <CardContent className="p-0">
-                  <div className="max-h-[26rem] overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                        <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                        <p>Aucune notification</p>
+              <div className="ml-auto flex items-center gap-2">
+                {count > 0 && (
+                  <button
+                    onClick={handleToutLu}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap"
+                  >
+                    <CheckCheck className="w-3 h-3" />
+                    Tout lire
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setShowFilter(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto rounded-b-2xl">
+              {filteredNotifications.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">
+                    {filter
+                      ? "Aucune notification pour ce filtre"
+                      : "Aucune notification"}
+                  </p>
+                </div>
+              ) : (
+                filteredNotifications.map((notif) => {
+                  const label = getTypeLabel(notif.type);
+
+                  return (
+                    <div
+                      key={notif.id}
+                      className={`flex items-start gap-3 px-4 py-3 border-b border-gray-100 dark:border-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer overflow-hidden ${getTypeBg(
+                        notif.type,
+                        !notif.lu,
+                      )}`}
+                      onClick={() => !notif.lu && handleLu(notif.id)}
+                    >
+                      <span className="text-xl shrink-0 mt-0.5">
+                        {getTypeIcon(notif.type)}
+                      </span>
+
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <span
+                          className={`text-xs font-semibold uppercase tracking-wide ${label.cls}`}
+                        >
+                          {label.text}
+                        </span>
+
+                        <p
+                          className={`text-sm leading-snug mt-0.5 whitespace-pre-line break-words overflow-hidden ${
+                            !notif.lu
+                              ? "font-medium dark:text-white"
+                              : "text-gray-600 dark:text-gray-400"
+                          }`}
+                        >
+                          {notif.message}
+                        </p>
+
+                        <p className="text-xs text-gray-400 mt-1">
+                          {notif.created_at}
+                        </p>
                       </div>
-                    ) : (
-                      <div className="divide-y divide-gray-100 dark:divide-slate-800">
-                        {notifications.map((notification) => (
-                          <motion.div
-                            key={notification.id}
-                            layout
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 20 }}
-                            className={`p-4 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${
-                              !notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
-                            }`}
-                            onClick={() => handleMarkAsRead(notification.id)}
-                          >
-                            <div className="flex gap-3">
-                              <div className="flex-shrink-0 mt-1">
-                                {getNotificationIcon(notification.type)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-sm text-gray-900 dark:text-white">
-                                      {notification.title}
-                                      {!notification.read && (
-                                        <span className="ml-2 inline-block w-2 h-2 bg-blue-600 rounded-full" />
-                                      )}
-                                    </p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                                      {notification.message}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                                      {formatTimestamp(notification.timestamp)}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteNotification(notification.id);
-                                    }}
-                                    className="flex-shrink-0 h-6 w-6 hover:bg-red-100 dark:hover:bg-red-950 hover:text-red-600 dark:hover:text-red-400"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </>
+
+                      {!notif.lu && (
+                        <div
+                          className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${getTypeDot(notif.type)}`}
+                        />
+                      )}
+                      {/* ✅ Bouton suppression manuelle */}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await supprimerNotification(notif.id);
+                          setNotifications((prev) =>
+                            prev.filter((n) => n.id !== notif.id),
+                          );
+                          if (!notif.lu)
+                            setCount((prev) => Math.max(0, prev - 1));
+                        }}
+                        className="ml-1 text-gray-300 hover:text-red-400 dark:text-slate-600 dark:hover:text-red-400 transition-colors rounded p-0.5 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        title="Supprimer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

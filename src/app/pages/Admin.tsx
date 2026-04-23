@@ -1,10 +1,8 @@
-// src/app/pages/Admin.tsx — demandes formateur connectées au vrai backend
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
 import { motion } from "motion/react";
 import {
   Users,
-  BookOpen,
   FileCheck,
   CheckCircle,
   XCircle,
@@ -15,11 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import {
-  getAllRequests,
-  processRequest,
-  getFileUrl,
-} from "../services/demandeService";
+import { getAllRequests, processRequest } from "../services/demandeService";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -42,10 +36,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import type { InstructorRequest } from "../types";
 import axios from "axios";
-import api from "../services/api";
 
 export const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -56,6 +51,10 @@ export const Admin: React.FC = () => {
   const [selectedRequest, setSelectedRequest] =
     useState<InstructorRequest | null>(null);
   const [processing, setProcessing] = useState(false);
+
+  // ✅ Fix 3 — état pour la modale de refus avec commentaire
+  const [showRefusModal, setShowRefusModal] = useState(false);
+  const [commentaireRefus, setCommentaireRefus] = useState("");
 
   if (!currentUser || currentUser.role !== "admin") {
     navigate("/app");
@@ -82,22 +81,17 @@ export const Admin: React.FC = () => {
   const accepted = requests.filter((r) => r.status === "accepted");
   const rejected = requests.filter((r) => r.status === "rejected");
 
-  const handleProcess = async (
-    request: InstructorRequest,
-    action: "accepter" | "refuser",
-  ) => {
+  // ── Accepter directement ───────────────────────────────
+  const handleAccepter = async () => {
+    if (!selectedRequest) return;
     setProcessing(true);
     try {
-      const updated = await processRequest(request.id, action);
+      const updated = await processRequest(selectedRequest.id, "accepter");
       setRequests((prev) =>
         prev.map((r) => (r.id === updated.id ? updated : r)),
       );
       setSelectedRequest(null);
-      toast.success(
-        action === "accepter"
-          ? "Demande acceptée ! L'utilisateur est maintenant formateur."
-          : "Demande refusée. L'utilisateur a été notifié.",
-      );
+      toast.success("Demande acceptée.");
     } catch (error: unknown) {
       if (axios.isAxiosError(error))
         toast.error(error.response?.data?.message || "Erreur");
@@ -107,18 +101,36 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleViewFile = (
-    request: InstructorRequest,
-    type: "cv" | "attestation",
-  ) => {
-    const url =
-      type === "cv" ? (request as any).cvUrl : (request as any).certificateUrl;
+  // ── Ouvrir la modale de refus ──────────────────────────
+  const handleOpenRefusModal = () => {
+    setCommentaireRefus("");
+    setShowRefusModal(true);
+  };
 
-    if (!url) {
-      toast.error("Fichier non disponible");
-      return;
+  // ── Confirmer le refus avec commentaire optionnel ──────
+  const handleConfirmerRefus = async () => {
+    if (!selectedRequest) return;
+    setProcessing(true);
+    try {
+      const updated = await processRequest(
+        selectedRequest.id,
+        "refuser",
+        commentaireRefus.trim() || undefined,
+      );
+      setRequests((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r)),
+      );
+      setShowRefusModal(false);
+      setSelectedRequest(null);
+      setCommentaireRefus("");
+      toast.success("Demande refusée. L'utilisateur a été notifié.");
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error))
+        toast.error(error.response?.data?.message || "Erreur");
+      else toast.error("Une erreur est survenue");
+    } finally {
+      setProcessing(false);
     }
-    window.open(url, "_blank");
   };
 
   const StatusBadge = ({ status }: { status: string }) => (
@@ -285,9 +297,9 @@ export const Admin: React.FC = () => {
         </Card>
       </div>
 
-      {/* ── Modale détail de la demande ── */}
+      {/* ══ Modale détail de la demande ══════════════════════════ */}
       <Dialog
-        open={!!selectedRequest}
+        open={!!selectedRequest && !showRefusModal}
         onOpenChange={() => setSelectedRequest(null)}
       >
         <DialogContent className="max-w-2xl">
@@ -300,6 +312,7 @@ export const Admin: React.FC = () => {
               {selectedRequest?.user?.email}
             </DialogDescription>
           </DialogHeader>
+
           {selectedRequest && (
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -326,62 +339,109 @@ export const Admin: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div>
-                <span className="font-medium text-gray-600 text-sm">
+
+              <div className="w-full min-w-0">
+                <span className="font-medium text-gray-600 text-sm block mb-1">
                   Motivation :
                 </span>
-                <p className="mt-1 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
-                  {selectedRequest.motivation}
-                </p>
+
+                <div className="w-full min-w-0 max-h-40 overflow-y-auto overflow-x-hidden rounded-lg border bg-gray-50 p-3">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-all">
+                    {selectedRequest.motivation}
+                  </p>
+                </div>
               </div>
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => handleViewFile(selectedRequest, "cv")}
-                >
-                  <FileText className="w-4 h-4" /> CV{" "}
-                  <ExternalLink className="w-3 h-3" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => handleViewFile(selectedRequest, "attestation")}
-                >
-                  <FileText className="w-4 h-4" /> Attestation{" "}
-                  <ExternalLink className="w-3 h-3" />
-                </Button>
+
+              {/* ✅ Fix 1 — Afficher TOUS les fichiers CV */}
+              <div className="space-y-2">
+                <span className="font-medium text-gray-600 text-sm block">
+                  CV ({selectedRequest.cvUrls?.length ?? 0} fichier
+                  {(selectedRequest.cvUrls?.length ?? 0) > 1 ? "s" : ""}) :
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {(selectedRequest.cvUrls ?? []).length > 0 ? (
+                    (selectedRequest.cvUrls ?? []).map((url, i) => (
+                      <Button
+                        key={i}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => window.open(url, "_blank")}
+                      >
+                        <FileText className="w-4 h-4" />
+                        CV{" "}
+                        {(selectedRequest.cvUrls?.length ?? 0) > 1
+                          ? `#${i + 1}`
+                          : ""}
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    ))
+                  ) : (
+                    <span className="text-sm text-gray-400">Aucun fichier</span>
+                  )}
+                </div>
+              </div>
+
+              {/* ✅ Fix 1 — Afficher TOUTES les attestations */}
+              <div className="space-y-2">
+                <span className="font-medium text-gray-600 text-sm block">
+                  Attestations ({selectedRequest.attestationUrls?.length ?? 0}{" "}
+                  fichier
+                  {(selectedRequest.attestationUrls?.length ?? 0) > 1
+                    ? "s"
+                    : ""}
+                  ) :
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {(selectedRequest.attestationUrls ?? []).length > 0 ? (
+                    (selectedRequest.attestationUrls ?? []).map((url, i) => (
+                      <Button
+                        key={i}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => window.open(url, "_blank")}
+                      >
+                        <FileText className="w-4 h-4" />
+                        Attestation{" "}
+                        {(selectedRequest.attestationUrls?.length ?? 0) > 1
+                          ? `#${i + 1}`
+                          : ""}
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    ))
+                  ) : (
+                    <span className="text-sm text-gray-400">Aucun fichier</span>
+                  )}
+                </div>
               </div>
             </div>
           )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedRequest(null)}>
               Fermer
             </Button>
             {selectedRequest?.status === "pending" && (
               <>
+                {/* ✅ Fix 3 — Ouvre la modale de commentaire avant de refuser */}
                 <Button
                   variant="destructive"
-                  onClick={() => handleProcess(selectedRequest, "refuser")}
+                  onClick={handleOpenRefusModal}
                   disabled={processing}
                 >
-                  {processing ? (
-                    "..."
-                  ) : (
-                    <>
-                      <XCircle className="w-4 h-4 mr-1" /> Refuser
-                    </>
-                  )}
+                  <XCircle className="w-4 h-4 mr-1" /> Refuser
                 </Button>
                 <Button
                   className="bg-green-600 hover:bg-green-700"
-                  onClick={() => handleProcess(selectedRequest, "accepter")}
+                  onClick={handleAccepter}
                   disabled={processing}
                 >
                   {processing ? (
-                    "..."
+                    <span className="flex items-center gap-1">
+                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                      Traitement...
+                    </span>
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4 mr-1" /> Accepter
@@ -390,6 +450,84 @@ export const Admin: React.FC = () => {
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Modale de refus avec commentaire ═════════════════════ */}
+      <Dialog
+        open={showRefusModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowRefusModal(false);
+            setCommentaireRefus("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md w-full overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <XCircle className="w-5 h-5" /> Refuser la demande
+            </DialogTitle>
+            <DialogDescription>
+              Demande de {selectedRequest?.user?.firstName}{" "}
+              {selectedRequest?.user?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 space-y-3 w-full min-w-0">
+            <Label htmlFor="commentaire" className="text-sm font-medium">
+              Commentaire{" "}
+              <span className="text-gray-400 font-normal">(optionnel)</span>
+            </Label>
+            <div className="w-full min-w-0">
+              <Textarea
+                id="commentaire"
+                value={commentaireRefus}
+                onChange={(e) => setCommentaireRefus(e.target.value)}
+                placeholder="Ex : Profil ne correspond pas aux critères requis..."
+                rows={4}
+                maxLength={500}
+                wrap="soft"
+                className="w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words whitespace-pre-wrap"
+              />
+            </div>
+            <p className="text-xs text-gray-400 text-right">
+              {commentaireRefus.length}/500
+            </p>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-800">
+              Ce commentaire sera envoyé à l'apprenant dans sa notification et
+              par email.
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRefusModal(false);
+                setCommentaireRefus("");
+              }}
+              disabled={processing}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmerRefus}
+              disabled={processing}
+            >
+              {processing ? (
+                <span className="flex items-center gap-1">
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                  Traitement...
+                </span>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-1" /> Confirmer le refus
+                </>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

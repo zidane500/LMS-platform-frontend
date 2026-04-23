@@ -105,6 +105,7 @@ export const CourseDetail: React.FC = () => {
       return null;
     }
   };
+  // ✅ NOUVEAU — termine = toutes les tentatives épuisées (pas juste une tentative)
   const chargerStatutQuiz = async (
     formationId: string,
     moduleId: string,
@@ -113,15 +114,18 @@ export const CourseDetail: React.FC = () => {
     try {
       const quiz = await getQuiz(formationId, moduleId);
 
-      const termine = (progression?.tentatives_quiz ?? []).some(
+      // ✅ "Quiz terminé" uniquement si nbTentatives >= nb_tentatives_max
+      const nbTentatives = (progression?.tentatives_quiz ?? []).filter(
         (t) => String(t.quiz_id) === String(quiz.id),
-      );
+      ).length;
+
+      const toutesEpuisees = nbTentatives >= quiz.nb_tentatives_max;
 
       setModuleQuizStatus((prev) => ({
         ...prev,
         [moduleId]: {
           quizId: quiz.id,
-          termine,
+          termine: toutesEpuisees,
         },
       }));
     } catch {
@@ -146,7 +150,11 @@ export const CourseDetail: React.FC = () => {
         const enrolled = (c as any).isEnrolled ?? false;
         setIsEnrolled(enrolled);
 
-        if (currentUser?.role === "learner" && enrolled) {
+        if (
+          (currentUser?.role === "learner" ||
+            currentUser?.role === "instructor") &&
+          enrolled
+        ) {
           const progression = await chargerProgression(courseId);
 
           const modulesFormation = c.modules ?? [];
@@ -189,7 +197,11 @@ export const CourseDetail: React.FC = () => {
   const isOwner =
     isInstructorOrAdmin &&
     String((course as any).instructorId) === String(currentUser?.id);
-  const canAccess = isInstructorOrAdmin || isEnrolled;
+  const isOwnerInstructor =
+    isInstructorOrAdmin &&
+    String((course as any).instructorId) === String(currentUser?.id);
+  const canAccess =
+    isOwnerInstructor || currentUser?.role === "admin" || isEnrolled;
   const modules = course.modules ?? [];
 
   // ── Progression globale ───────────────────────────────────
@@ -326,7 +338,11 @@ export const CourseDetail: React.FC = () => {
       );
     }
 
-    if (courseId && currentUser?.role === "learner") {
+    if (
+      courseId &&
+      (currentUser?.role === "learner" ||
+        (currentUser?.role === "instructor" && isEnrolled))
+    ) {
       await chargerProgression(courseId);
     }
   };
@@ -347,156 +363,425 @@ export const CourseDetail: React.FC = () => {
       </div>
 
       {/* ══════════════════════════════════════════════════════
-          HERO — miniature + infos + bouton inscription
+          HERO — FINAL BOSS / ULTRA PREMIUM
       ══════════════════════════════════════════════════════ */}
-      <div className="max-w-6xl mx-auto px-6 pt-4 pb-8">
+      {/* ══════════════════════════════════════════════════════
+          HERO — FINAL BOSS / ULTRA PREMIUM
+      ══════════════════════════════════════════════════════ */}
+      <div className="max-w-7xl mx-auto px-6 pt-4 pb-8">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/5"
+          initial={{ opacity: 0, y: 26, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          className="group relative overflow-hidden rounded-[34px] border border-white/10 bg-[#050816] shadow-[0_35px_120px_rgba(0,0,0,0.58)]"
         >
-          {/* Image de fond */}
-          <div className="relative h-56 md:h-64">
+          {/* Background image / atmosphere */}
+          <div className="absolute inset-0">
             {course.thumbnail ? (
               <img
                 src={course.thumbnail}
                 alt={course.title}
-                className="w-full h-full object-cover"
+                className="h-full w-full object-cover opacity-[0.09] scale-110 transition-transform duration-[5000ms] group-hover:scale-[1.14]"
                 onError={(e) => {
                   e.currentTarget.style.display = "none";
-                  e.currentTarget.nextElementSibling?.classList.remove(
-                    "hidden",
-                  );
                 }}
               />
             ) : null}
-            {/* Fallback si pas de miniature */}
 
-            <div className="absolute inset-0 rounded-3xl p-[2px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 animate-spin-slow">
-              <div className="w-full h-full bg-slate-1000 rounded-3xl" />
-            </div>
+            <div className="absolute -top-24 left-6 h-80 w-80 rounded-full bg-blue-500/20 blur-3xl" />
+            <div className="absolute top-0 right-0 h-96 w-96 rounded-full bg-violet-500/20 blur-3xl" />
+            <div className="absolute -bottom-28 left-1/3 h-80 w-80 rounded-full bg-cyan-500/12 blur-3xl" />
+            <div className="absolute bottom-4 right-1/4 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
 
-            {/* Contenu réel */}
-            <div className="relative rounded-3xl overflow-hidden"></div>
-            <div
-              className={`${course.thumbnail ? "hidden" : "flex"} absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 items-center justify-center`}
-            ></div>
-            {/* Overlay dégradé */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(59,130,246,0.24),transparent_22%),radial-gradient(circle_at_86%_15%,rgba(168,85,247,0.18),transparent_24%),radial-gradient(circle_at_55%_100%,rgba(6,182,212,0.12),transparent_28%)]" />
+
+            <div className="absolute inset-0 opacity-[0.055] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:36px_36px]" />
+
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/72 to-slate-950/22" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/88 via-transparent to-transparent" />
+
+            <div className="absolute inset-y-0 left-[-20%] w-[40%] rotate-12 bg-gradient-to-r from-transparent via-white/[0.04] to-transparent blur-3xl" />
           </div>
 
-          {/* Contenu hero */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
-            {/* Badges */}
-            <div className="flex flex-wrap gap-2 mb-3">
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30 backdrop-blur-sm">
-                {course.category}
-              </span>
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border ${
-                  course.level === "Débutant"
-                    ? "bg-green-500/20 text-green-300 border-green-500/30"
-                    : course.level === "Intermédiaire"
-                      ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
-                      : "bg-red-500/20 text-red-300 border-red-500/30"
-                }`}
-              >
-                {course.level}
-              </span>
-            </div>
+          {/* inner border */}
+          <div className="pointer-events-none absolute inset-[1px] rounded-[33px] border border-white/5" />
 
-            {/* Titre */}
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-3 leading-tight">
-              {course.title}
-            </h1>
-
-            {/* Infos rapides */}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400 mb-5">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-blue-400" />{" "}
-                {course.estimatedDuration}h de contenu
-              </span>
-              <span className="flex items-center gap-1.5">
-                <BookOpen className="w-4 h-4 text-blue-400" /> {modules.length}{" "}
-                module{modules.length > 1 ? "s" : ""}
-              </span>
-              {(course as any).instructor && (
-                <span className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-blue-400" />
-                  {(course as any).instructor.firstName}{" "}
-                  {(course as any).instructor.lastName}
-                </span>
-              )}
-            </div>
-
-            {/* ── Zone inscription + progression ── */}
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Bouton inscription / statut */}
-              {currentUser?.role === "learner" ? (
-                isEnrolled ? (
-                  <div className="flex items-center gap-3">
-                    {/* Bouton désactivé "Vous êtes inscrit" */}
-                    <button
-                      disabled
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-500/20 border border-green-500/40 text-green-400 font-semibold text-sm cursor-not-allowed"
+          <div className="relative z-10 grid min-h-[410px] grid-cols-1 lg:grid-cols-[1.18fr_0.82fr]">
+            {/* LEFT SIDE */}
+            <div className="px-6 py-7 md:px-8 md:py-9 lg:px-10 lg:py-10 xl:px-12 xl:py-12">
+              <div className="max-w-3xl">
+                {/* top badges */}
+                <div className="mb-5 flex flex-wrap items-center gap-2.5">
+                  {course.category && (
+                    <motion.span
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.05 }}
+                      className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-500/15 px-3.5 py-1.5 text-xs font-semibold text-blue-200 backdrop-blur-xl"
                     >
-                      <CheckCircle className="w-4 h-4" /> Vous êtes inscrit
-                    </button>
+                      {course.category}
+                    </motion.span>
+                  )}
 
-                    {/* Progression totale */}
-                    {currentUser?.role === "learner" && isEnrolled && (
-                      <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-sm">
-                        <BarChart3 className="w-4 h-4 text-blue-400 shrink-0" />
-                        <div className="min-w-[100px]">
-                          <div className="flex justify-between text-xs text-slate-400 mb-1">
-                            <span>Progression</span>
-                            <span className="text-blue-400 font-semibold">
+                  <motion.span
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className={`inline-flex items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold backdrop-blur-xl ${
+                      course.level === "Débutant"
+                        ? "border-emerald-400/20 bg-emerald-500/15 text-emerald-200"
+                        : course.level === "Intermédiaire"
+                          ? "border-amber-400/20 bg-amber-500/15 text-amber-200"
+                          : "border-rose-400/20 bg-rose-500/15 text-rose-200"
+                    }`}
+                  >
+                    {course.level}
+                  </motion.span>
+
+                  <motion.span
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-300 backdrop-blur-xl"
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                    </span>
+                    Actif
+                  </motion.span>
+                </div>
+
+                {/* title */}
+                <motion.h1
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-3xl font-black tracking-[-0.04em] text-white leading-[1.02] md:text-4xl xl:text-[3.45rem]"
+                >
+                  {course.title}
+                </motion.h1>
+
+                {/* subtitle */}
+                <motion.p
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.28 }}
+                  className="mt-4 max-w-2xl text-sm leading-7 text-slate-300/90 md:text-[15px]"
+                >
+                  Développez vos compétences avec une expérience d’apprentissage
+                  fluide et interactive.
+                </motion.p>
+
+                {/* quick stats */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.34 }}
+                  className="mt-7 flex flex-wrap items-center gap-3"
+                >
+                  <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl shadow-lg shadow-black/10">
+                    <Clock className="h-4 w-4 text-blue-400" />
+                    <span>{course.estimatedDuration}h de contenu</span>
+                  </div>
+
+                  <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl shadow-lg shadow-black/10">
+                    <BookOpen className="h-4 w-4 text-indigo-400" />
+                    <span>
+                      {modules.length} module{modules.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+
+                  {(course as any).instructor && (
+                    <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl shadow-lg shadow-black/10">
+                      <Users className="h-4 w-4 text-violet-400" />
+                      <span>
+                        {(course as any).instructor.firstName}{" "}
+                        {(course as any).instructor.lastName}
+                      </span>
+                    </div>
+                  )}
+                </motion.div>
+
+                {/* CTA section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.42 }}
+                  className="mt-9 flex flex-wrap items-center gap-4"
+                >
+                  {currentUser?.role === "learner" ||
+                  (currentUser?.role === "instructor" &&
+                    String((course as any).instructorId) !==
+                      String(currentUser?.id)) ? (
+                    isEnrolled ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/15 px-5 py-3 text-sm font-semibold text-emerald-300 backdrop-blur-2xl shadow-[0_10px_35px_rgba(16,185,129,0.12)]">
+                          <CheckCircle className="h-4 w-4" />
+                          Vous êtes inscrit
+                        </div>
+
+                        <div className="min-w-[250px] rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-2xl shadow-[0_15px_45px_rgba(0,0,0,0.22)]">
+                          <div className="mb-2 flex items-center justify-between text-xs">
+                            <span className="text-slate-400">Progression</span>
+                            <span className="font-semibold text-blue-300">
                               {totalProgress}%
                             </span>
                           </div>
-                          <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700"
-                              style={{ width: `${totalProgress}%` }}
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${totalProgress}%` }}
+                              transition={{ duration: 1.1, ease: "easeOut" }}
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"
                             />
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleEnroll}
-                    disabled={enrolling}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {enrolling ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />{" "}
-                        Inscription...
-                      </>
                     ) : (
-                      <>
-                        <Award className="w-4 h-4" /> S'inscrire gratuitement
-                      </>
-                    )}
-                  </button>
-                )
-              ) : isInstructorOrAdmin ? (
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 text-sm font-medium">
-                    <BookOpen className="w-4 h-4" /> Accès formateur
-                  </span>
-                  {(isOwner || currentUser?.role === "admin") && (
-                    <button
-                      onClick={() => navigate(`/app/courses/edit/${courseId}`)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-colors"
-                    >
-                      <Edit className="w-4 h-4" /> Modifier
-                    </button>
-                  )}
-                </div>
-              ) : null}
+                      <motion.button
+                        whileHover={{ scale: 1.03, y: -2 }}
+                        whileTap={{ scale: 0.985 }}
+                        onClick={handleEnroll}
+                        disabled={enrolling}
+                        className="group relative inline-flex items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(59,130,246,0.3)] transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="absolute inset-0 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.18),transparent)] translate-x-[-130%] group-hover:translate-x-[130%] transition-transform duration-1000" />
+                        <span className="relative z-10 flex items-center gap-2">
+                          {enrolling ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Inscription...
+                            </>
+                          ) : (
+                            <>
+                              <Award className="h-4 w-4" />
+                              S'inscrire gratuitement
+                            </>
+                          )}
+                        </span>
+                      </motion.button>
+                    )
+                  ) : isInstructorOrAdmin ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="inline-flex items-center gap-2 rounded-2xl border border-blue-400/20 bg-blue-500/15 px-5 py-3 text-sm font-medium text-blue-200 backdrop-blur-2xl">
+                        <BookOpen className="h-4 w-4" />
+                        Accès formateur
+                      </div>
+
+                      {(isOwner || currentUser?.role === "admin") && (
+                        <motion.button
+                          whileHover={{ scale: 1.02, y: -1 }}
+                          whileTap={{ scale: 0.985 }}
+                          onClick={() =>
+                            navigate(`/app/courses/edit/${courseId}`)
+                          }
+                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-medium text-slate-200 backdrop-blur-2xl transition hover:bg-white/15"
+                        >
+                          <Edit className="h-4 w-4" />
+                          Modifier
+                        </motion.button>
+                      )}
+                    </div>
+                  ) : null}
+                </motion.div>
+              </div>
+            </div>
+
+            {/* RIGHT SIDE — COURBE PREMIUM SEULE */}
+            <div className="relative hidden lg:block">
+              <div className="absolute inset-0 flex items-center justify-center p-8">
+                <motion.div
+                  initial={{ opacity: 0, x: 20, scale: 0.98 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+                  className="relative h-[280px] w-full max-w-[430px] overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.05))] backdrop-blur-2xl shadow-[0_24px_70px_rgba(0,0,0,0.35)]"
+                >
+                  <div className="absolute -top-12 left-10 h-32 w-32 rounded-full bg-blue-500/20 blur-3xl" />
+                  <div className="absolute -bottom-10 right-10 h-36 w-36 rounded-full bg-violet-500/20 blur-3xl" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.12),transparent_25%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.10),transparent_28%)]" />
+
+                  {/* header */}
+                  <div className="absolute left-6 top-5 z-10">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                      Analytics
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-white">
+                      Votre croissance augmente toujours
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Progression d’apprentissage
+                    </p>
+                  </div>
+
+                  {/* badge */}
+                  <div className="absolute right-6 top-6 z-10 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300">
+                    +18.4%
+                  </div>
+
+                  {/* grid */}
+                  <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:34px_34px]" />
+
+                  {/* labels bottom */}
+                  <div className="absolute bottom-5 left-6 right-6 flex justify-between text-[11px] text-slate-500">
+                    <span>Jan</span>
+                    <span>Mar</span>
+                    <span>Mai</span>
+                    <span>Juil</span>
+                    <span>Sep</span>
+                  </div>
+
+                  {/* chart */}
+                  <svg
+                    viewBox="0 0 430 280"
+                    className="absolute inset-0 h-full w-full"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <linearGradient
+                        id="curveFillGradient"
+                        x1="0%"
+                        y1="0%"
+                        x2="0%"
+                        y2="100%"
+                      >
+                        <stop offset="0%" stopColor="rgba(56,189,248,0.26)" />
+                        <stop offset="55%" stopColor="rgba(96,165,250,0.12)" />
+                        <stop offset="100%" stopColor="rgba(139,92,246,0.02)" />
+                      </linearGradient>
+
+                      <linearGradient
+                        id="curveLineGradient"
+                        x1="0%"
+                        y1="0%"
+                        x2="100%"
+                        y2="0%"
+                      >
+                        <stop offset="0%" stopColor="#22d3ee" />
+                        <stop offset="50%" stopColor="#60a5fa" />
+                        <stop offset="100%" stopColor="#8b5cf6" />
+                      </linearGradient>
+
+                      <filter id="curveGlow">
+                        <feGaussianBlur stdDeviation="5" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+
+                    <motion.path
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.9 }}
+                      d="M 35 215
+                         C 80 208, 110 194, 145 176
+                         C 180 158, 210 164, 245 132
+                         C 278 102, 315 108, 350 76
+                         C 372 56, 392 48, 405 34
+                         L 405 248 L 35 248 Z"
+                      fill="url(#curveFillGradient)"
+                    />
+
+                    <motion.path
+                      initial={{ pathLength: 0, opacity: 0.6 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{
+                        duration: 1.9,
+                        delay: 0.15,
+                        ease: "easeOut",
+                      }}
+                      d="M 35 215
+                         C 80 208, 110 194, 145 176
+                         C 180 158, 210 164, 245 132
+                         C 278 102, 315 108, 350 76
+                         C 372 56, 392 48, 405 34"
+                      fill="none"
+                      stroke="url(#curveLineGradient)"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                      filter="url(#curveGlow)"
+                    />
+
+                    <motion.path
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{
+                        duration: 1.9,
+                        delay: 0.15,
+                        ease: "easeOut",
+                      }}
+                      d="M 35 215
+                         C 80 208, 110 194, 145 176
+                         C 180 158, 210 164, 245 132
+                         C 278 102, 315 108, 350 76
+                         C 372 56, 392 48, 405 34"
+                      fill="none"
+                      stroke="url(#curveLineGradient)"
+                      strokeWidth="3.2"
+                      strokeLinecap="round"
+                    />
+
+                    {[
+                      { cx: 35, cy: 215 },
+                      { cx: 145, cy: 176 },
+                      { cx: 245, cy: 132 },
+                      { cx: 350, cy: 76 },
+                      { cx: 405, cy: 34 },
+                    ].map((point, i) => (
+                      <g key={i}>
+                        <motion.circle
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{
+                            duration: 0.35,
+                            delay: 0.45 + i * 0.12,
+                          }}
+                          cx={point.cx}
+                          cy={point.cy}
+                          r="8"
+                          fill="rgba(96,165,250,0.14)"
+                        />
+                        <motion.circle
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{
+                            duration: 0.35,
+                            delay: 0.45 + i * 0.12,
+                          }}
+                          cx={point.cx}
+                          cy={point.cy}
+                          r="4.5"
+                          fill="#93c5fd"
+                        />
+                        <motion.circle
+                          animate={{
+                            scale: [1, 1.45, 1],
+                            opacity: [0.45, 0.15, 0.45],
+                          }}
+                          transition={{
+                            duration: 2.8,
+                            repeat: Infinity,
+                            delay: i * 0.2,
+                          }}
+                          cx={point.cx}
+                          cy={point.cy}
+                          r="11"
+                          fill="rgba(139,92,246,0.18)"
+                        />
+                      </g>
+                    ))}
+                  </svg>
+
+                  {/* footer */}
+                  <div className="absolute bottom-10 left-6 z-10">
+                    <p className="text-sm font-semibold text-white">
+                      Croissance continue
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -521,10 +806,11 @@ export const CourseDetail: React.FC = () => {
                 {course.description}
               </p>
               {course.prerequisites?.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <p className="text-sm font-medium text-slate-300 mb-2">
+                <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3 flex-wrap">
+                  <p className="text-sm font-medium text-slate-300 whitespace-nowrap">
                     Prérequis
                   </p>
+
                   <div className="flex flex-wrap gap-2">
                     {course.prerequisites.map((p, i) => (
                       <span
@@ -556,16 +842,20 @@ export const CourseDetail: React.FC = () => {
                   <span className="text-sm font-semibold text-blue-400">
                     Lecture en cours
                   </span>
-                  <span className="text-sm text-slate-500">
-                    — {selectedContent.content.title}
-                  </span>
+                  <span className="text-sm text-slate-500"></span>
                 </div>
+
                 <ContentViewer
                   content={selectedContent.content}
                   formationId={courseId!}
                   moduleId={selectedContent.moduleId}
                   canAccess={canAccess}
-                  isLearner={currentUser?.role === "learner"}
+                  isLearner={
+                    currentUser?.role === "learner" ||
+                    (currentUser?.role === "instructor" &&
+                      isEnrolled &&
+                      !isOwnerInstructor)
+                  }
                   onComplete={() =>
                     handleContentComplete(
                       selectedContent.moduleId,
@@ -630,13 +920,28 @@ export const CourseDetail: React.FC = () => {
                               {index + 1}
                             </div>
 
-                            {/* Titre + description */}
+                            {/* Titre + durée + description */}
                             <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-white">
-                                {module.title}
-                              </p>
+                              <div className="flex items-center gap-3">
+                                <p className="font-semibold text-white truncate">
+                                  {module.title}
+                                </p>
+
+                                {module.duration > 0 && (
+                                  <span className="text-xs text-slate-500 shrink-0">
+                                    {module.duration} min
+                                  </span>
+                                )}
+                              </div>
+
                               {module.description && (
-                                <p className="text-xs text-slate-500 truncate mt-0.5">
+                                <p
+                                  className={`text-xs text-slate-500 mt-0.5 transition-all ${
+                                    isOpen
+                                      ? "whitespace-pre-wrap break-words line-clamp-none"
+                                      : "truncate"
+                                  }`}
+                                >
                                   {module.description}
                                 </p>
                               )}
@@ -658,12 +963,6 @@ export const CourseDetail: React.FC = () => {
                                     </span>
                                   </div>
                                 )}
-
-                              {module.duration > 0 && (
-                                <span className="text-xs text-slate-500 hidden sm:block">
-                                  {module.duration} min
-                                </span>
-                              )}
 
                               <div
                                 className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
@@ -811,28 +1110,30 @@ export const CourseDetail: React.FC = () => {
         </motion.div>
 
         {/* Message inscription si apprenant non inscrit */}
-        {currentUser?.role === "learner" && !isEnrolled && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-center py-6"
-          >
-            <div className="inline-flex flex-col items-center gap-3 px-8 py-6 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20">
-              <Lock className="w-10 h-10 text-blue-500" />
-              <p className="text-white font-semibold">
-                Inscrivez-vous pour accéder aux contenus
-              </p>
-              <button
-                onClick={handleEnroll}
-                disabled={enrolling}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm transition-all"
-              >
-                {enrolling ? "Inscription..." : "S'inscrire gratuitement"}
-              </button>
-            </div>
-          </motion.div>
-        )}
+        {(currentUser?.role === "learner" ||
+          (currentUser?.role === "instructor" && !isOwnerInstructor)) &&
+          !isEnrolled && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-center py-6"
+            >
+              <div className="inline-flex flex-col items-center gap-3 px-8 py-6 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20">
+                <Lock className="w-10 h-10 text-blue-500" />
+                <p className="text-white font-semibold">
+                  Inscrivez-vous pour accéder aux contenus
+                </p>
+                <button
+                  onClick={handleEnroll}
+                  disabled={enrolling}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm transition-all"
+                >
+                  {enrolling ? "Inscription..." : "S'inscrire gratuitement"}
+                </button>
+              </div>
+            </motion.div>
+          )}
       </div>
     </div>
   );

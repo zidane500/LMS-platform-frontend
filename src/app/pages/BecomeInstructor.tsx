@@ -104,11 +104,11 @@ export const BecomeInstructor: React.FC = () => {
         desc: "Votre demande pour devenir formateur est actuellement en cours de traitement par notre équipe. Vous serez notifié dès qu'une décision sera prise.",
       },
       accepted: {
-        icon: <CheckCircle className="w-20 h-20 text-green-500" />,
-        label: "Acceptée ✓",
-        color: "bg-green-100 text-green-800",
-        title: "Félicitations, vous êtes maintenant formateur !",
-        desc: "Votre demande a été acceptée. Votre rôle a été mis à jour. Vous pouvez maintenant créer et gérer des formations.",
+        icon: <XCircle className="w-20 h-20 text-red-500" />,
+        label: "Privilèges retirés",
+        color: "bg-red-100 text-red-800",
+        title: "Vos privilèges de formateur ont été retirés",
+        desc: "Vous n'avez plus accès aux fonctionnalités réservées aux formateurs. Si vous pensez qu'il s'agit d'une erreur, veuillez contacter l'administration.",
       },
     };
 
@@ -120,10 +120,10 @@ export const BecomeInstructor: React.FC = () => {
         <div className="max-w-2xl mx-auto p-6 space-y-6">
           <Button
             variant="ghost"
-            onClick={() => navigate("/app/profile")}
+            onClick={() => navigate("/app/courses")}
             className="gap-2 text-gray-700 dark:text-slate-300"
           >
-            <ArrowLeft className="w-4 h-4" /> Retour au profil
+            <ArrowLeft className="w-4 h-4" /> Retour
           </Button>
 
           <motion.div
@@ -155,59 +155,6 @@ export const BecomeInstructor: React.FC = () => {
                   {config.desc}
                 </p>
 
-                {/* Détails */}
-                <div className="mt-4 text-left bg-gray-50 dark:bg-slate-800 rounded-xl p-4 space-y-2 text-sm border dark:border-slate-700">
-                  <p>
-                    <span className="font-medium text-gray-600 dark:text-slate-400">
-                      Spécialité :
-                    </span>
-                    <span className="text-gray-900 dark:text-white ml-1">
-                      {existingRequest.specialty}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-medium text-gray-600 dark:text-slate-400">
-                      Expérience :
-                    </span>
-                    <span className="text-gray-900 dark:text-white ml-1">
-                      {existingRequest.experience} ans
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-medium text-gray-600 dark:text-slate-400">
-                      Langues :
-                    </span>
-                    <span className="text-gray-900 dark:text-white ml-1">
-                      {existingRequest.languages?.join(", ")}
-                    </span>
-                  </p>
-                  {existingRequest.createdAt && (
-                    <p>
-                      <span className="font-medium text-gray-600 dark:text-slate-400">
-                        Soumise le :
-                      </span>
-                      <span className="text-gray-900 dark:text-white ml-1">
-                        {new Date(existingRequest.createdAt).toLocaleDateString(
-                          "fr-FR",
-                        )}
-                      </span>
-                    </p>
-                  )}
-                </div>
-
-                {existingRequest.status === "accepted" && (
-                  <div className="flex flex-col gap-3 pt-2">
-                    <Button
-                      className="bg-green-600 hover:bg-green-700 gap-2"
-                      onClick={() => navigate("/app/courses/create")}
-                    >
-                      <Award className="w-4 h-4" /> Créer ma première formation
-                    </Button>
-                    <Button variant="outline" onClick={() => navigate("/app")}>
-                      Aller au tableau de bord
-                    </Button>
-                  </div>
-                )}
                 {existingRequest.status === "pending" && (
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
                     Le traitement peut prendre jusqu'à 5 jours ouvrés.
@@ -232,12 +179,27 @@ export const BecomeInstructor: React.FC = () => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
+    // ✅ Limites : 5 CV, 10 attestations
+    const maxFiles = type === "cv" ? 5 : 10;
+    const currentCount =
+      type === "cv" ? cvFiles.length : certificateFiles.length;
+    const label = type === "cv" ? "CV" : "attestation";
+
+    if (currentCount + files.length > maxFiles) {
+      toast.error(
+        `Maximum ${maxFiles} fichiers ${label} autorisés (${currentCount} déjà ajouté${currentCount > 1 ? "s" : ""})`,
+      );
+      e.target.value = "";
+      return;
+    }
+
     const invalid = files.find((f) => f.type !== "application/pdf");
     if (invalid) {
       toast.error("Seuls les fichiers PDF sont acceptés");
       e.target.value = "";
       return;
     }
+
     const tooBig = files.find((f) => f.size > 5 * 1024 * 1024);
     if (tooBig) {
       toast.error(`"${tooBig.name}" dépasse 5 MB`);
@@ -247,10 +209,10 @@ export const BecomeInstructor: React.FC = () => {
 
     if (type === "cv") {
       setCvFiles((prev) => [...prev, ...files]);
-      toast.success(`${files.length} fichier(s) CV ajouté(s)`);
+      toast.success(`fichier ajouté`);
     } else {
       setCertificateFiles((prev) => [...prev, ...files]);
-      toast.success(`${files.length} fichier(s) attestation ajouté(s)`);
+      toast.success(`fichier ajouté`);
     }
     e.target.value = "";
   };
@@ -280,7 +242,7 @@ export const BecomeInstructor: React.FC = () => {
         certificateFiles,
       });
       setExistingRequest(req);
-      toast.success("Demande envoyée ! Vous recevrez une notification.");
+      toast.success("Demande envoyée.");
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         const msg = error.response?.data?.errors
@@ -300,10 +262,11 @@ export const BecomeInstructor: React.FC = () => {
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         <Button
           variant="ghost"
-          onClick={() => navigate("/app/profile")}
+          onClick={() => navigate("/app/courses")}
           className="gap-2"
         >
-          <ArrowLeft className="w-4 h-4" /> Retour au profil
+          <ArrowLeft className="w-4 h-4 text-black" />{" "}
+          <span className="text-black">Retour aux formations</span>
         </Button>
 
         {/* Message si demande précédente refusée */}

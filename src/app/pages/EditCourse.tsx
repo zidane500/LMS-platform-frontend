@@ -981,6 +981,7 @@ export const EditCourse: React.FC = () => {
                           <SelectItem value="pdf">
                             <span className="flex items-center gap-2">
                               <FileText className="w-4 h-4 text-red-500" /> PDF
+                              ou Document externe
                             </span>
                           </SelectItem>
                           <SelectItem value="audio">
@@ -1087,19 +1088,7 @@ export const EditCourse: React.FC = () => {
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Résumé</Label>
-                      <Textarea
-                        value={contentForm.summary}
-                        onChange={(e) =>
-                          setContentForm({
-                            ...contentForm,
-                            summary: e.target.value,
-                          })
-                        }
-                        rows={2}
-                      />
-                    </div>
+
                     <div className="flex gap-3 pt-2">
                       <Button
                         type="button"

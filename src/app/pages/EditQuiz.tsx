@@ -492,7 +492,9 @@ export const EditQuiz: React.FC = () => {
                           <Label>
                             Choix de réponses{" "}
                             <span className="text-gray-400 text-xs">
-                              (cochez la bonne réponse)
+                              {q.type === "vrai_faux"
+                                ? "(sélectionnez la bonne réponse)"
+                                : "(cochez une ou plusieurs bonnes réponses)"}
                             </span>
                           </Label>
                           <div className="space-y-2">
