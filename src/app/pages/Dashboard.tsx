@@ -37,6 +37,8 @@ import { ApprenantCharts } from "../components/ApprenantCharts";
 import { AdminCharts } from "../components/AdminCharts";
 import { LearningTimeChart } from "../components/LearningTimeChart";
 import { AdminChartsExtra } from "../components/AdminChartsExtra";
+import { getCertificats } from "../services/certificatService";
+import api from "../services/api";
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useApp();
@@ -54,6 +56,9 @@ export const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"progression" | "badges">(
     "progression",
   );
+  const [certificatFormationIds, setCertificatFormationIds] = useState<
+    string[]
+  >([]);
 
   // ── Admin ─────────────────────────────────────────────────
   const [adminFormations, setAdminFormations] = useState<any[]>([]);
@@ -112,6 +117,14 @@ export const Dashboard: React.FC = () => {
 
   // ── Charge données admin ─────────────────────────────────
   useEffect(() => {
+    api
+      .get("/certificats")
+      .then((res) => {
+        setCertificatFormationIds(
+          res.data.map((c: any) => String(c.formation_id)),
+        );
+      })
+      .catch(() => {});
     if (!currentUser || currentUser.role !== "admin") return;
     setAdminLoading(true);
 
@@ -686,6 +699,9 @@ export const Dashboard: React.FC = () => {
                             >
                               <CourseCard
                                 course={course}
+                                hasCertificate={certificatFormationIds.includes(
+                                  String(course.id),
+                                )}
                                 progress={
                                   progressByFormation[String(course.id)] ?? 0
                                 }

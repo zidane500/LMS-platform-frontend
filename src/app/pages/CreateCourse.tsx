@@ -57,6 +57,9 @@ export const CreateCourse: React.FC = () => {
     thumbnail: "",
     statut: "brouillon",
   });
+  const [categories, setCategories] = useState<string[]>([]);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
   const [prerequisites, setPrerequisites] = useState<string[]>([]);
   const [newPrerequisite, setNewPrerequisite] = useState("");
 
@@ -83,6 +86,13 @@ export const CreateCourse: React.FC = () => {
       .catch(() => toast.error("Impossible de charger les formations"))
       .finally(() => setLoadingFormations(false));
   }, [isCoded]);
+
+  useEffect(() => {
+    api
+      .get("/formations/categories")
+      .then((res) => setCategories(res.data ?? []))
+      .catch(() => {});
+  }, []);
 
   // Générer un code aléatoire
   const generateCode = () => {
@@ -232,12 +242,52 @@ export const CreateCourse: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Catégorie *</Label>
-                  <Input
-                    value={formData.category}
-                    onChange={(e) => handleChange("category", e.target.value)}
-                    placeholder="Ex: Développement Web"
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      value={formData.category}
+                      onChange={(e) => handleChange("category", e.target.value)}
+                      onFocus={() => setShowCategoryDropdown(true)}
+                      onBlur={() =>
+                        setTimeout(() => setShowCategoryDropdown(false), 150)
+                      }
+                      placeholder="Ex: Développement Web"
+                      required
+                    />
+                    {/* ✅ Dropdown des catégories existantes */}
+                    {showCategoryDropdown && categories.length > 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                        {categories
+                          .filter((c) =>
+                            c
+                              .toLowerCase()
+                              .includes(formData.category.toLowerCase()),
+                          )
+                          .map((cat) => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onMouseDown={() => handleChange("category", cat)}
+                              className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 transition-colors"
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        {categories.filter((c) =>
+                          c
+                            .toLowerCase()
+                            .includes(formData.category.toLowerCase()),
+                        ).length === 0 && (
+                          <p className="px-4 py-2.5 text-sm text-gray-400 italic">
+                            Nouvelle catégorie : "{formData.category}"
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Saisissez manuellement ou sélectionnez une catégorie
+                    existante
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Niveau *</Label>

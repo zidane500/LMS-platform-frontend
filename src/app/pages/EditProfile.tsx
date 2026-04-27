@@ -1,7 +1,4 @@
-// src/app/pages/EditProfile.tsx — connecté au vrai backend
-// ✅ Supporte deux modes :
-//   1. Utilisateur normal → modifie son propre profil
-//   2. Admin avec /app/profile/edit/:userId → modifie le profil d'un autre user
+// src/app/pages/EditProfile.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { motion } from "motion/react";
@@ -19,6 +16,7 @@ import {
   Code,
   Loader2,
   Shield,
+  Mail,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -50,14 +48,12 @@ import type { User as UserType } from "../types";
 
 export const EditProfile: React.FC = () => {
   const navigate = useNavigate();
-  const { userId } = useParams<{ userId?: string }>(); // ✅ Param optionnel
+  const { userId } = useParams<{ userId?: string }>();
   const { currentUser, setCurrentUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Mode admin : édition d'un autre utilisateur
   const isAdminEdit = !!userId && currentUser?.role === "admin";
 
-  // ── État de l'utilisateur cible (soi-même ou autre) ──────────
   const [targetUser, setTargetUser] = useState<UserType | null>(
     isAdminEdit ? null : currentUser,
   );
@@ -66,6 +62,7 @@ export const EditProfile: React.FC = () => {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
+    email: "",
     phone: "",
     dateOfBirth: "",
     preferredLanguage: "fr",
@@ -78,10 +75,9 @@ export const EditProfile: React.FC = () => {
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  // ── Charger l'utilisateur cible si mode admin ─────────────────
+  // ── Charger l'utilisateur cible si mode admin ──────────────
   useEffect(() => {
     if (!isAdminEdit || !userId) return;
-
     getAllUsers()
       .then((users) => {
         const found = users.find((u) => u.id === userId);
@@ -94,6 +90,7 @@ export const EditProfile: React.FC = () => {
         setFormData({
           firstName: found.firstName,
           lastName: found.lastName,
+          email: found.email,
           phone: found.phone ?? "",
           dateOfBirth: found.dateOfBirth ?? "",
           preferredLanguage: found.preferredLanguage ?? "fr",
@@ -107,12 +104,13 @@ export const EditProfile: React.FC = () => {
       .finally(() => setLoadingUser(false));
   }, [userId, isAdminEdit]);
 
-  // ── Initialiser formData pour le mode normal ──────────────────
+  // ── Initialiser formData mode normal ───────────────────────
   useEffect(() => {
     if (!isAdminEdit && currentUser) {
       setFormData({
         firstName: currentUser.firstName,
         lastName: currentUser.lastName,
+        email: currentUser.email,
         phone: currentUser.phone ?? "",
         dateOfBirth: currentUser.dateOfBirth ?? "",
         preferredLanguage: currentUser.preferredLanguage ?? "fr",
@@ -128,6 +126,7 @@ export const EditProfile: React.FC = () => {
     navigate("/login");
     return null;
   }
+
   if (loadingUser) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -137,7 +136,7 @@ export const EditProfile: React.FC = () => {
   }
 
   const handleChange = (field: string, value: string) =>
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((p) => ({ ...p, [field]: value }));
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -157,31 +156,39 @@ export const EditProfile: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ── Sauvegarde ────────────────────────────────────────────────
   const handleSave = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       toast.error("Le prénom et le nom sont obligatoires");
       return;
     }
     setLoading(true);
-
     try {
       if (isAdminEdit && userId) {
-        // ✅ MODE ADMIN : utilise adminUpdateUser (pas de photo pour l'instant)
-        const updated = await adminUpdateUser(userId, {
+        // ✅ MODE ADMIN : tous les champs + photo
+        await adminUpdateUser(userId, {
           prenom: formData.firstName.trim(),
           nom: formData.lastName.trim(),
-          email: targetUser?.email ?? "",
+          email: formData.email.trim(),
           role:
             formData.role === "learner"
               ? "apprenant"
               : formData.role === "instructor"
                 ? "formateur"
                 : "admin",
+          telephone: formData.phone.trim() || undefined,
+          date_naissance: formData.dateOfBirth || undefined,
+          langue_preferee: formData.preferredLanguage,
+          domaines_cibles: formData.targetDomains
+            .split(",")
+            .map((d) => d.trim())
+            .filter(Boolean),
+          technologies: formData.technologies
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean),
+          photo_profil: photoFile,
         });
-        toast.success(
-          `Profil de ${updated.firstName} ${updated.lastName} mis à jour !`,
-        );
+        toast.success("Profil mis à jour avec succès !");
         navigate("/app/admin/user-management");
       } else {
         // ✅ MODE NORMAL : l'utilisateur modifie son propre profil
@@ -213,9 +220,7 @@ export const EditProfile: React.FC = () => {
           const first = Object.values(errors)[0] as string[];
           toast.error(first[0]);
         } else {
-          toast.error(
-            error.response?.data?.message || "Erreur lors de la mise à jour",
-          );
+          toast.error(error.response?.data?.message || "Erreur");
         }
       } else {
         toast.error("Une erreur est survenue");
@@ -231,144 +236,113 @@ export const EditProfile: React.FC = () => {
       ? "Apprenant"
       : role === "instructor"
         ? "Formateur"
-        : role === "admin"
-          ? "Admin"
-          : "Utilisateur";
+        : "Admin";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50/30 dark:from-gray-900 dark:to-purple-900/10">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         {/* Retour */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
+        <Button
+          variant="ghost"
+          onClick={() =>
+            navigate(
+              isAdminEdit ? "/app/admin/user-management" : "/app/profile",
+            )
+          }
+          className="gap-2"
         >
-          <Button
-            variant="ghost"
-            onClick={() =>
-              navigate(
-                isAdminEdit ? "/app/admin/user-management" : "/app/profile",
-              )
-            }
-            className="gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {isAdminEdit
-              ? "Retour à la gestion des utilisateurs"
-              : "Retour au profil"}
-          </Button>
-        </motion.div>
+          <ArrowLeft className="w-4 h-4" />
+          {isAdminEdit
+            ? "Retour à la gestion des utilisateurs"
+            : "Retour au profil"}
+        </Button>
 
         {/* Titre */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="flex items-center gap-3">
-            {isAdminEdit && (
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                <Shield className="w-5 h-5 text-blue-600" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {isAdminEdit
-                  ? `Modifier : ${displayUser?.firstName} ${displayUser?.lastName}`
-                  : "Modifier mon profil"}
-              </h1>
-              {isAdminEdit && (
-                <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-                  Édition admin — {displayUser?.email}
-                </p>
-              )}
+        <div className="flex items-center gap-3">
+          {isAdminEdit && (
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+              <Shield className="w-5 h-5 text-blue-600" />
             </div>
+          )}
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {isAdminEdit
+                ? `Modifier : ${displayUser?.firstName} ${displayUser?.lastName}`
+                : "Modifier mon profil"}
+            </h1>
+            {isAdminEdit && (
+              <p className="text-sm text-gray-500 mt-0.5">
+                Édition admin — tous les champs sont modifiables
+              </p>
+            )}
           </div>
-        </motion.div>
+        </div>
 
-        {/* ── Photo (seulement mode normal) ── */}
-        {!isAdminEdit && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-blue-600" /> Photo de profil
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row items-center gap-6">
-                <div className="relative">
-                  <Avatar className="w-28 h-28 border-4 border-white shadow-xl">
-                    <AvatarImage src={photoPreview} className="object-cover" />
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-3xl">
-                      {currentUser.firstName[0]}
-                      {currentUser.lastName[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <button
+        {/* ── Photo de profil ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Camera className="w-5 h-5 text-blue-600" /> Photo de profil
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="relative">
+                <Avatar className="w-28 h-28 border-4 border-white shadow-xl">
+                  <AvatarImage src={photoPreview} className="object-cover" />
+                  <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-3xl">
+                    {displayUser?.firstName?.[0] ?? "?"}
+                    {displayUser?.lastName?.[0] ?? ""}
+                  </AvatarFallback>
+                </Avatar>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-gray-500">JPG, PNG — max 5 MB</p>
+                {isAdminEdit && (
+                  <p className="text-xs text-orange-500 dark:text-orange-400">
+                    ⚠️ Modification de la photo d'un autre utilisateur
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute bottom-0 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg"
+                    className="gap-2"
                   >
-                    <Camera className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm text-gray-500">JPG, PNG — max 5 MB</p>
-                  <div className="flex gap-2">
+                    <Camera className="w-4 h-4" /> Changer
+                  </Button>
+                  {photoPreview && (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="destructive"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={handleRemovePhoto}
                       className="gap-2"
                     >
-                      <Camera className="w-4 h-4" /> Changer
+                      <Trash2 className="w-4 h-4" /> Supprimer
                     </Button>
-                    {photoPreview && (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleRemovePhoto}
-                        className="gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" /> Supprimer
-                      </Button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                className="hidden"
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Avatar affiché (mode admin, lecture seule) ── */}
-        {isAdminEdit && displayUser && (
-          <div className="flex items-center gap-4 p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-2xl">
-            <Avatar className="w-14 h-14">
-              <AvatarImage src={displayUser.avatar} />
-              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                {displayUser.firstName[0]}
-                {displayUser.lastName[0]}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-semibold text-gray-900 dark:text-white">
-                {displayUser.firstName} {displayUser.lastName}
-              </p>
-              <p className="text-sm text-gray-500">{displayUser.email}</p>
             </div>
-            <Badge className="ml-auto" variant="secondary">
-              {roleLabel(displayUser.role)}
-            </Badge>
-          </div>
-        )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </CardContent>
+        </Card>
 
         {/* ── Informations personnelles ── */}
         <Card>
@@ -397,111 +371,105 @@ export const EditProfile: React.FC = () => {
               </div>
             </div>
 
-            {/* Email — toujours lecture seule */}
+            {/* Email — modifiable en mode admin, lecture seule en mode normal */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-gray-400" /> Email
-                <Badge variant="secondary" className="text-xs">
-                  Non modifiable ici
-                </Badge>
+                <Mail className="w-4 h-4 text-gray-400" /> Email
+                {!isAdminEdit && (
+                  <Badge variant="secondary" className="text-xs">
+                    Non modifiable
+                  </Badge>
+                )}
               </Label>
-              <Input
-                value={displayUser?.email ?? ""}
-                readOnly
-                disabled
-                className="bg-gray-100 dark:bg-slate-800 cursor-not-allowed"
-              />
+              {isAdminEdit ? (
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  placeholder="email@exemple.com"
+                />
+              ) : (
+                <Input
+                  value={currentUser.email}
+                  readOnly
+                  disabled
+                  className="bg-gray-100 dark:bg-slate-800 cursor-not-allowed"
+                />
+              )}
             </div>
 
-            {/* Téléphone + Date naissance (mode normal seulement) */}
-            {!isAdminEdit && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1">
-                    <Phone className="w-4 h-4 text-gray-400" /> Téléphone
-                  </Label>
-                  <Input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleChange("phone", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4 text-gray-400" /> Date de
-                    naissance
-                  </Label>
-                  <Input
-                    type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) =>
-                      handleChange("dateOfBirth", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Langue préférée (mode normal seulement) */}
-            {!isAdminEdit && (
+            {/* Téléphone + Date naissance */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
-                  <Globe className="w-4 h-4 text-gray-400" /> Langue préférée
+                  <Phone className="w-4 h-4 text-gray-400" /> Téléphone
                 </Label>
-                <Select
-                  value={formData.preferredLanguage}
-                  onValueChange={(v) => handleChange("preferredLanguage", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fr">🇫🇷 Français</SelectItem>
-                    <SelectItem value="en">🇬🇧 Anglais</SelectItem>
-                    <SelectItem value="ar">🇸🇦 Arabe</SelectItem>
-                    <SelectItem value="es">🇪🇸 Espagnol</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleChange("phone", e.target.value)}
+                />
               </div>
-            )}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4 text-gray-400" /> Date de
+                  naissance
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleChange("dateOfBirth", e.target.value)}
+                />
+              </div>
+            </div>
 
-            {/* Domaines + Technologies (mode normal seulement) */}
-            {!isAdminEdit && (
-              <>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1">
-                    <Tag className="w-4 h-4 text-gray-400" /> Domaines d'intérêt
-                  </Label>
-                  <Input
-                    value={formData.targetDomains}
-                    onChange={(e) =>
-                      handleChange("targetDomains", e.target.value)
-                    }
-                    placeholder="Ex: Développement Web, Data Science"
-                  />
-                  <p className="text-xs text-gray-400">
-                    Séparez par des virgules
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1">
-                    <Code className="w-4 h-4 text-gray-400" /> Technologies
-                  </Label>
-                  <Input
-                    value={formData.technologies}
-                    onChange={(e) =>
-                      handleChange("technologies", e.target.value)
-                    }
-                    placeholder="Ex: React, Python, SQL"
-                  />
-                  <p className="text-xs text-gray-400">
-                    Séparez par des virgules
-                  </p>
-                </div>
-              </>
-            )}
+            {/* Langue préférée */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Globe className="w-4 h-4 text-gray-400" /> Langue préférée
+              </Label>
+              <Select
+                value={formData.preferredLanguage}
+                onValueChange={(v) => handleChange("preferredLanguage", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fr">🇫🇷 Français</SelectItem>
+                  <SelectItem value="en">🇬🇧 Anglais</SelectItem>
+                  <SelectItem value="ar">🇸🇦 Arabe</SelectItem>
+                  <SelectItem value="es">🇪🇸 Espagnol</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Rôle — modifiable par l'admin seulement, pas sur soi-même */}
+            {/* Domaines + Technologies */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Tag className="w-4 h-4 text-gray-400" /> Domaines d'intérêt
+              </Label>
+              <Input
+                value={formData.targetDomains}
+                onChange={(e) => handleChange("targetDomains", e.target.value)}
+                placeholder="Ex: Développement Web, Data Science"
+              />
+              <p className="text-xs text-gray-400">Séparez par des virgules</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Code className="w-4 h-4 text-gray-400" /> Technologies
+              </Label>
+              <Input
+                value={formData.technologies}
+                onChange={(e) => handleChange("technologies", e.target.value)}
+                placeholder="Ex: React, Python, SQL"
+              />
+              <p className="text-xs text-gray-400">Séparez par des virgules</p>
+            </div>
+
+            {/* Rôle — modifiable par admin seulement (pas sur soi-même) */}
             {isAdminEdit && displayUser?.id !== currentUser?.id ? (
               <div className="space-y-2">
                 <Label>Rôle</Label>
@@ -536,7 +504,7 @@ export const EditProfile: React.FC = () => {
             <Button
               onClick={handleSave}
               disabled={loading}
-              className="w-full h-11 gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              className="w-full h-11 gap-2 bg-gradient-to-r from-blue-600 to-purple-600"
             >
               {loading ? (
                 <>

@@ -11,6 +11,7 @@ interface CourseCardProps {
   course: Course;
   progress?: number;
   isEnrolled?: boolean;
+  hasCertificate?: boolean;
   onEnroll?: () => void;
   onView: () => void;
   onEdit?: () => void;
@@ -22,6 +23,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   course,
   progress,
   isEnrolled = false,
+  hasCertificate = false,
   onEnroll,
   onView,
   onEdit,
@@ -70,7 +72,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                               shadow-lg shadow-purple-900/30 border border-purple-400/30"
               >
                 <Lock className="w-3 h-3" />
-                <span>Codée</span>
+                <span>Bloqué</span>
               </div>
             </div>
           )}
@@ -192,11 +194,23 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
         {/* ── Footer ── */}
         <CardFooter className="p-6 pt-0 flex flex-col gap-2">
-          {isEnrolled && (
+          {/* Affichage du badge "Vous êtes terminé" si l'utilisateur a un certificat */}
+          {hasCertificate && (
             <span
               className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full
-                             font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
-                             border border-green-200 dark:border-green-800 self-center"
+                font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
+                border border-yellow-200 dark:border-yellow-800 self-center"
+            >
+              Vous êtes terminé
+            </span>
+          )}
+
+          {/* Affichage du badge "Vous êtes inscrit" si l'utilisateur est inscrit */}
+          {isEnrolled && !hasCertificate && (
+            <span
+              className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full
+                font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                border border-green-200 dark:border-green-800 self-center"
             >
               <svg
                 className="w-3 h-3"
@@ -214,6 +228,8 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               Vous êtes inscrit
             </span>
           )}
+
+          {/* ✅ Badge formation terminée avec certificat */}
 
           <motion.div
             whileHover={{ scale: 1.05 }}

@@ -98,6 +98,16 @@ export const CourseDetail: React.FC = () => {
     content: Content & { progression?: any };
   } | null>(null);
   // ✅ Accès pour le tracking du temps
+
+  // ── Rôles de base ──────────────────────────────────────────
+  const isInstructorOrAdmin =
+    currentUser?.role === "instructor" || currentUser?.role === "admin";
+
+  const isOwnerInstructor =
+    isInstructorOrAdmin &&
+    String((course as any)?.instructorId) === String(currentUser?.id);
+
+  // ── Accès pour le tracking du temps ────────────────────────
   const isInstructorOrAdminForTracking =
     currentUser?.role === "instructor" || currentUser?.role === "admin";
 
@@ -157,6 +167,7 @@ export const CourseDetail: React.FC = () => {
       }));
     }
   };
+
   // ── Chargement ───────────────────────────────────────────
   useEffect(() => {
     if (!courseId) return;
@@ -252,14 +263,14 @@ export const CourseDetail: React.FC = () => {
 
   if (!course) return null;
 
-  const isInstructorOrAdmin =
-    currentUser?.role === "instructor" || currentUser?.role === "admin";
+  //const isInstructorOrAdmin =
+  //currentUser?.role === "instructor" || currentUser?.role === "admin";
   const isOwner =
     isInstructorOrAdmin &&
     String((course as any).instructorId) === String(currentUser?.id);
-  const isOwnerInstructor =
-    isInstructorOrAdmin &&
-    String((course as any).instructorId) === String(currentUser?.id);
+  //const isOwnerInstructor =
+  //isInstructorOrAdmin &&
+  //String((course as any).instructorId) === String(currentUser?.id);
   const canAccess =
     isOwnerInstructor || currentUser?.role === "admin" || isEnrolled;
   const modules = course.modules ?? [];

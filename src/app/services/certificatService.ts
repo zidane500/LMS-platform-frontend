@@ -20,3 +20,7 @@ export async function verifierCertificat(numero: string) {
   const res = await api.get(`/certificats/verifier/${numero}`);
   return res.data;
 }
+export async function getCertificats(): Promise<Certificate[]> {
+  const res = await api.get("/certificats");
+  return res.data;
+}

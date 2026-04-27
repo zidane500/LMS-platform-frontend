@@ -67,7 +67,7 @@ export const CodedFormationLock: React.FC<Props> = ({
       await api.post(`/formations/${formationId}/verifier-code`, {
         code: code.toUpperCase(),
       });
-      toast.success("✅ Code correct ! Accès accordé.");
+      toast.success("Code correct ! Accès accordé.");
       onAccesAccorde();
     } catch (err: any) {
       setErreur(
