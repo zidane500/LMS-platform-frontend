@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "motion/react";
-import { Clock, BookOpen, User, Edit, Trash2 } from "lucide-react";
+import { Clock, BookOpen, User, Edit, Trash2, Lock } from "lucide-react";
 import { Course } from "../types";
 import { Card, CardContent, CardFooter } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -44,20 +44,42 @@ export const CourseCard: React.FC<CourseCardProps> = ({
       className="h-full"
     >
       <Card className="overflow-hidden h-full flex flex-col group cursor-pointer hover:shadow-xl transition-shadow">
+        {/* ── Miniature ── */}
         <div className="relative overflow-hidden">
           <motion.img
             whileHover={{ scale: 1.1 }}
             transition={{ duration: 0.4 }}
-            src={course.thumbnail}
+            src={
+              course.thumbnail ||
+              "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&q=80"
+            }
             alt={course.title}
             className="w-full h-48 object-cover"
+            onError={(e) => {
+              e.currentTarget.src =
+                "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&q=80";
+            }}
           />
+
+          {/* ✅ Fix 4 — Icône cadenas formation codée (coin supérieur droit) */}
+          {course.is_coded && (
+            <div className="absolute top-2 right-2 z-10">
+              <div
+                className="flex items-center gap-1.5 bg-purple-600/90 backdrop-blur-sm
+                              text-white text-xs font-semibold px-2.5 py-1.5 rounded-full
+                              shadow-lg shadow-purple-900/30 border border-purple-400/30"
+              >
+                <Lock className="w-3 h-3" />
+                <span>Codée</span>
+              </div>
+            </div>
+          )}
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-          {/* Admin Actions Buttons */}
+          {/* Actions admin */}
           {showAdminActions && (
-            <div className="absolute top-3 left-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute top-3 left-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
               {onEdit && (
                 <Button
                   size="icon"
@@ -87,6 +109,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </div>
           )}
 
+          {/* Barre de progression */}
           {progress !== undefined && (
             <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
               <div className="flex items-center justify-between text-white text-sm mb-1">
@@ -98,6 +121,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           )}
         </div>
 
+        {/* ── Contenu ── */}
         <CardContent className="flex-1 p-6">
           <div className="flex items-center justify-between mb-3 gap-2">
             <Badge variant="outline">{course.category}</Badge>
@@ -130,12 +154,50 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               </div>
             )}
           </div>
+
+          {/* ✅ Formations prérequises (visible si codée et prérequis définis) */}
+          {course.is_coded &&
+            course.prerequis_formations &&
+            course.prerequis_formations.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+                <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-1.5 flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Prérequis (
+                  {course.prerequis_formations.length}) :
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {course.prerequis_formations.slice(0, 2).map((p) => (
+                    <span
+                      key={p.id}
+                      className="text-xs px-2 py-0.5 rounded-full
+                               bg-purple-50 text-purple-700 border border-purple-200
+                               dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-700
+                               truncate max-w-[120px]"
+                      title={p.titre}
+                    >
+                      {p.titre}
+                    </span>
+                  ))}
+                  {course.prerequis_formations.length > 2 && (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full
+                                   bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400"
+                    >
+                      +{course.prerequis_formations.length - 2}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
         </CardContent>
 
+        {/* ── Footer ── */}
         <CardFooter className="p-6 pt-0 flex flex-col gap-2">
           {isEnrolled && (
-            <span className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800 self-center">
-              {" "}
+            <span
+              className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full
+                             font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                             border border-green-200 dark:border-green-800 self-center"
+            >
               <svg
                 className="w-3 h-3"
                 fill="none"
@@ -165,9 +227,14 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             ) : (
               <Button
                 onClick={onEnroll || onView}
-                variant="outline"
-                className="w-full"
+                variant={course.is_coded ? "default" : "outline"}
+                className={`w-full ${
+                  course.is_coded
+                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0"
+                    : ""
+                }`}
               >
+                {course.is_coded && <Lock className="w-3.5 h-3.5 mr-1.5" />}
                 Voir le cours
               </Button>
             )}

@@ -14,7 +14,6 @@ export function mapApiFormation(
     Intermédiaire: "Intermédiaire",
     Avancé: "Avancé",
   };
-
   return {
     id: String(f.id),
     title: f.titre,
@@ -23,7 +22,7 @@ export function mapApiFormation(
     level: levelMap[f.niveau] ?? f.niveau,
     estimatedDuration: f.duree_estimee,
     prerequisites: f.prerequis ?? [],
-    thumbnail: f.miniature ?? undefined, // ← miniature → thumbnail
+    thumbnail: f.miniature ?? undefined,
     instructorId: String(f.formateur_id),
     instructor: f.formateur
       ? {
@@ -34,10 +33,12 @@ export function mapApiFormation(
         }
       : undefined,
     modules: (f.modules ?? []).map((m: any) => mapApiModule(m)),
-    isEnrolled: f.est_inscrit ?? false, // ← est_inscrit → isEnrolled
+    isEnrolled: f.est_inscrit ?? false,
     statut: f.statut,
     createdAt: f.created_at,
-    // Champs requis par le type Course mais non utilisés ici
+    // ✅ NOUVEAU
+    is_coded: f.is_coded ?? false,
+    prerequis_formations: f.prerequis_formations ?? [],
     enrolledCount: 0,
     rating: 0,
     quizzes: [],
@@ -74,6 +75,7 @@ export async function getFormations(params?: {
   mine?: boolean;
   statut?: string;
   formateur_id?: string;
+  is_coded?: boolean; // ← NOUVEAU
 }): Promise<Course[]> {
   const queryParams: Record<string, string> = {};
   if (params?.search) queryParams.search = params.search;
@@ -81,18 +83,18 @@ export async function getFormations(params?: {
     queryParams.categorie = params.categorie;
   if (params?.niveau && params.niveau !== "all")
     queryParams.niveau = params.niveau;
-  if (params?.mine !== undefined) {
+  if (params?.mine !== undefined)
     queryParams.mine = params.mine ? "true" : "false";
-  }
   if (params?.statut && params.statut !== "all")
     queryParams.statut = params.statut;
   if (params?.formateur_id && params.formateur_id !== "all")
     queryParams.formateur_id = params.formateur_id;
+  // ✅ NOUVEAU
+  if (params?.is_coded === true) queryParams.is_coded = "true";
 
   const res = await api.get("/formations", { params: queryParams });
   return res.data.map(mapApiFormation);
 }
-
 export interface Instructor {
   id: string;
   prenom: string;
@@ -233,4 +235,21 @@ export async function reorderModules(
   await api.post(`/formations/${formationId}/modules/reorder`, {
     ordre: order.map((m) => parseInt(m.id)), // ← tableau d'IDs dans le bon ordre
   });
+}
+
+// Vérifier l'accès à une formation codée
+export async function verifierAccesFormation(id: string): Promise<{
+  is_coded: boolean;
+  a_acces: boolean;
+  prerequis_formations?: { id: string; titre: string; a_certificat: boolean }[];
+}> {
+  const res = await api.get(`/formations/${id}/verifier-acces`);
+  return res.data;
+}
+
+export async function soumettreCodeFormation(
+  id: string,
+  code: string,
+): Promise<void> {
+  await api.post(`/formations/${id}/verifier-code`, { code });
 }

@@ -27,6 +27,7 @@ import { EditQuiz } from "./pages/EditQuiz";
 import { InstructorProgress } from "./pages/InstructorProgress";
 import { BadgesPage } from "./pages/BadgesPage";
 import { VerifyCertificate } from "./pages/VerifyCertificate";
+import { AdminUserProfile } from "./pages/AdminUserProfile";
 
 export const router = createBrowserRouter([
   {
@@ -99,6 +100,10 @@ export const router = createBrowserRouter([
         Component: EditProfile,
       },
       {
+        path: "profile/edit/:userId",
+        Component: EditProfile,
+      },
+      {
         path: "become-instructor",
         Component: BecomeInstructor,
       },
@@ -125,6 +130,10 @@ export const router = createBrowserRouter([
       {
         path: "reports",
         Component: Reports,
+      },
+      {
+        path: "admin/user-profile/:userId",
+        Component: AdminUserProfile,
       },
     ],
   },

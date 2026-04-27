@@ -1,46 +1,137 @@
-// src/app/pages/Login.tsx
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
-import { motion } from 'motion/react';
-import { GraduationCap, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { toast } from 'sonner';
-import loginImage from '@/assets/09efca758bab23262c0ec1f67a245e59c64dfb6d.png';
-import axios from 'axios';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, Link } from "react-router";
+import { motion } from "motion/react";
+import { GraduationCap, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { toast } from "sonner";
+import loginImage from "@/assets/09efca758bab23262c0ec1f67a245e59c64dfb6d.png";
+import axios from "axios";
+
+// ✅ Type pour Turnstile (évite erreurs TypeScript)
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: string | HTMLElement, options: object) => string;
+      reset: (widgetId: string) => void;
+      remove: (widgetId: string) => void;
+    };
+  }
+}
+
+// ✅ Remplace par ta vraie clé depuis dash.cloudflare.com
+// Pour les tests locaux, utilise : 1x00000000000000000000AA (toujours succès)
+const TURNSTILE_SITE_KEY =
+  import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+const TURNSTILE_ENABLED = true;
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // ✅ Turnstile state
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
+
+  // ✅ Initialiser Turnstile après le montage
+  useEffect(() => {
+    const initTurnstile = () => {
+      if (window.turnstile && turnstileRef.current && !widgetIdRef.current) {
+        widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: document.documentElement.classList.contains("dark")
+            ? "dark"
+            : "light",
+          callback: (token: string) => {
+            setTurnstileToken(token);
+            setTurnstileReady(true);
+          },
+          "expired-callback": () => {
+            setTurnstileToken(null);
+            setTurnstileReady(false);
+          },
+          "error-callback": () => {
+            // En cas d'erreur Turnstile, on laisse quand même passer
+            setTurnstileToken("bypass");
+            setTurnstileReady(true);
+          },
+        });
+      }
+    };
+
+    // Attendre que le script Turnstile soit chargé
+    if (window.turnstile) {
+      initTurnstile();
+    } else {
+      const interval = setInterval(() => {
+        if (window.turnstile) {
+          clearInterval(interval);
+          initTurnstile();
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+
+    return () => {
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+      }
+    };
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // ✅ Vérification Turnstile
+    if (!turnstileToken && TURNSTILE_SITE_KEY !== "1x00000000000000000000AA") {
+      toast.error("Veuillez compléter la vérification de sécurité");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const user = await login({ email, mot_de_passe: password });
+      const user = await login({
+        email,
+        mot_de_passe: password,
+        // ✅ Envoi du token Turnstile au backend
+        cf_turnstile_response: TURNSTILE_ENABLED ? turnstileToken : "bypass",
+      });
+
       toast.success(`Bienvenue ${user.firstName} !`);
-      if (user.role === 'admin') {
-        navigate('/app/admin');
-      } else {
-        navigate('/app');
-      }
+      navigate(user.role === "admin" ? "/app/admin" : "/app");
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         const message =
           error.response?.data?.errors?.email?.[0] ||
           error.response?.data?.message ||
-          'Email ou mot de passe incorrect';
+          "Email ou mot de passe incorrect";
         toast.error(message);
       } else {
-        toast.error('Une erreur est survenue. Réessayez.');
+        toast.error("Une erreur est survenue. Réessayez.");
+      }
+
+      // ✅ Reset Turnstile après erreur
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.reset(widgetIdRef.current);
+        setTurnstileToken(null);
+        setTurnstileReady(false);
       }
     } finally {
       setLoading(false);
@@ -48,32 +139,33 @@ export const Login: React.FC = () => {
   };
 
   return (
-    /* ── Fond plein écran ── */
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950 p-4 lg:p-8 relative overflow-hidden">
-
-      {/* Décorations de fond */}
+    <div className="h-screen max-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950 p-3 lg:p-4 relative overflow-hidden">
+      {/* Décorations fond */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           animate={{ y: [0, -30, 0], x: [0, 20, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="absolute -top-32 -right-32 w-96 h-96 bg-blue-500/10 dark:bg-blue-400/5 rounded-full blur-3xl"
         />
         <motion.div
           animate={{ y: [0, 40, 0], x: [0, -30, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1,
+          }}
           className="absolute -bottom-32 -left-32 w-80 h-80 bg-purple-500/10 dark:bg-purple-400/5 rounded-full blur-3xl"
         />
       </div>
 
-      {/* ── Conteneur centré : Image + Card côte à côte ── */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
         className="relative z-10 flex items-stretch w-full max-w-4xl shadow-2xl rounded-3xl overflow-hidden"
       >
-
-        {/* ── Côté gauche : Image (même hauteur que la card) ── */}
+        {/* Côté gauche : Image */}
         <motion.div
           initial={{ x: -60, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -82,18 +174,23 @@ export const Login: React.FC = () => {
         >
           <img
             src={loginImage}
-            alt="Your bridge to a perfect future"
+            alt="LMS Platform"
             className="w-full h-full object-cover"
           />
         </motion.div>
 
-        {/* ── Côté droit : Card de connexion ── */}
+        {/* Côté droit : Formulaire */}
         <Card className="w-full lg:w-1/2 rounded-none lg:rounded-r-3xl lg:rounded-l-none backdrop-blur-xl bg-white/90 dark:bg-slate-900/90 border-0 border-l border-white/20 dark:border-slate-700/50">
-          <CardHeader className="text-center space-y-4 pb-8 pt-10">
+          <CardHeader className="text-center space-y-3 pb-4 pt-6">
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
+              transition={{
+                type: "spring",
+                stiffness: 200,
+                damping: 15,
+                delay: 0.3,
+              }}
               className="flex justify-center"
             >
               <div className="relative">
@@ -103,7 +200,6 @@ export const Login: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -112,15 +208,11 @@ export const Login: React.FC = () => {
               <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Bienvenue
               </CardTitle>
-              <CardDescription className="text-base mt-2 text-gray-600 dark:text-gray-400">
-                Connectez-vous pour continuer votre apprentissage
-              </CardDescription>
             </motion.div>
           </CardHeader>
 
           <form onSubmit={handleLogin}>
-            <CardContent className="space-y-5 px-8 pb-10">
-
+            <CardContent className="space-y-3 px-8 pb-4">
               {/* Email */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -128,19 +220,21 @@ export const Login: React.FC = () => {
                 transition={{ delay: 0.5 }}
                 className="space-y-2"
               >
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium">
+                  Email
+                </Label>
                 <div className="relative group">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                   <Input
-  id="email"
-  type="email"
-  placeholder="Saisir votre email"
-  value={email}
-  onChange={(e) => setEmail(e.target.value)}
-  autoComplete="off"   // ← ajoute cette ligne
-  className="pl-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 focus:border-blue-600 focus:ring-blue-600/20"
-  required
-/>
+                    id="email"
+                    type="email"
+                    placeholder="Saisir votre email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    className="pl-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700"
+                    required
+                  />
                 </div>
               </motion.div>
 
@@ -151,25 +245,31 @@ export const Login: React.FC = () => {
                 transition={{ delay: 0.6 }}
                 className="space-y-2"
               >
-                <Label htmlFor="password" className="text-sm font-medium">Mot de passe</Label>
+                <Label htmlFor="password" className="text-sm font-medium">
+                  Mot de passe
+                </Label>
                 <div className="relative group">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                   <Input
-  id="password"
-  type={showPassword ? 'text' : 'password'}
-  placeholder="Saisir votre mot de passe"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-  autoComplete="new-password"   
-  className="pl-10 pr-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 focus:border-blue-600 focus:ring-blue-600/20 [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
-  required
-/>
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Saisir votre mot de passe"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    className="pl-10 pr-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700"
+                    required
+                  />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
               </motion.div>
@@ -178,12 +278,12 @@ export const Login: React.FC = () => {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.7 }}
-                className="flex items-center justify-end text-sm"
+                transition={{ delay: 0.65 }}
+                className="flex justify-end text-sm"
               >
                 <Link
                   to="/forgot-password"
-                  className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                  className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
                 >
                   Mot de passe oublié ?
                 </Link>
@@ -199,7 +299,7 @@ export const Login: React.FC = () => {
               >
                 <Button
                   type="submit"
-                  className="w-48 h-11 mx-auto block bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
+                  className="w-48 h-11 mx-auto block bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30"
                   disabled={loading}
                 >
                   {loading ? (
@@ -208,7 +308,7 @@ export const Login: React.FC = () => {
                       Connexion...
                     </div>
                   ) : (
-                    'Se connecter'
+                    "Se connecter"
                   )}
                 </Button>
               </motion.div>
@@ -221,23 +321,39 @@ export const Login: React.FC = () => {
                 className="text-sm text-center text-gray-600 dark:text-gray-400 space-y-3"
               >
                 <p>Pas encore de compte ?</p>
-                 <Link to="/register" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-semibold transition-colors">
-                    <Button
-                    type="submit"
-                    className="w-48 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
-                    disabled={loading}
+                <Link to="/register">
+                  <Button
+                    type="button"
+                    className="w-48 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium"
                   >
                     S'inscrire
-                      </Button>
-                  </Link>
+                  </Button>
+                </Link>
               </motion.div>
-
+              {/* ✅ Cloudflare Turnstile — positionné proprement dans le formulaire */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.7 }}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  {/* Widget Turnstile */}
+                  {TURNSTILE_ENABLED && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.7 }}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <div ref={turnstileRef} className="cf-turnstile" />
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
             </CardContent>
           </form>
-
-          
         </Card>
-
       </motion.div>
     </div>
   );

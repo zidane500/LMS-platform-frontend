@@ -34,6 +34,9 @@ import type { Course } from "../types";
 import type { ProgressionResume } from "../services/progressionService";
 import { InstructorChart } from "../components/InstructorChart";
 import { ApprenantCharts } from "../components/ApprenantCharts";
+import { AdminCharts } from "../components/AdminCharts";
+import { LearningTimeChart } from "../components/LearningTimeChart";
+import { AdminChartsExtra } from "../components/AdminChartsExtra";
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useApp();
@@ -82,10 +85,18 @@ export const Dashboard: React.FC = () => {
         const allCourses = await getFormations();
         const inProgress = allCourses.filter((c) => {
           const enrolled = (c as any).isEnrolled === true;
-          return enrolled && (progressMap[String(c.id)] ?? 0) < 100;
-        });
-        setEnrolledCourses(inProgress);
 
+          // Pour les formateurs, inclure aussi leurs propres formations créées
+          const isOwner =
+            currentUser.role === "instructor" &&
+            String((c as any).instructorId) === String(currentUser?.id);
+
+          return (
+            (enrolled || isOwner) && (progressMap[String(c.id)] ?? 0) < 100
+          );
+        });
+
+        setEnrolledCourses(inProgress);
         const details = await Promise.all(
           progs.map((p) => getProgression(p.formation_id).catch(() => null)),
         );
@@ -199,33 +210,6 @@ export const Dashboard: React.FC = () => {
 
         {isAdmin && (
           <>
-            {/* Stats globales */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-            >
-              <Card className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
-                <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-bold mb-1">Espace formateur</h3>
-                    <p className="text-blue-100 text-sm">
-                      🎓 Gérez vos formations et suivez vos apprenants
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      onClick={() => navigate("/app/instructor/progress")}
-                      className="px-5 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold transition-colors text-sm"
-                    >
-                      📊 Progression apprenants
-                    </motion.button>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -260,6 +244,48 @@ export const Dashboard: React.FC = () => {
                 color="orange"
                 suffix=""
               />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.13 }}
+            >
+              <AdminCharts />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.16 }}
+            >
+              <AdminChartsExtra />
+            </motion.div>
+
+            {/* Stats globales */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <Card className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+                <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold mb-1">Espace formateur</h3>
+                    <p className="text-blue-100 text-sm">
+                      🎓 Gérez vos formations et suivez vos apprenants
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      onClick={() => navigate("/app/instructor/progress")}
+                      className="px-5 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold transition-colors text-sm"
+                    >
+                      📊 Progression apprenants
+                    </motion.button>
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
 
             {/* ── Pour admin  ── */}
@@ -480,6 +506,12 @@ export const Dashboard: React.FC = () => {
             {currentUser?.role === "instructor" && (
               <div className="mt-8">
                 <InstructorChart />
+              </div>
+            )}
+
+            {(isLearner || isInstructor) && (
+              <div className="mt-6">
+                <LearningTimeChart />
               </div>
             )}
 

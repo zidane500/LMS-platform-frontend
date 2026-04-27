@@ -20,8 +20,8 @@ export interface User {
   targetDomains?: string[];
   technologies?: string[];
   role?: UserRole;
-
   avatar?: string;
+  peut_coder?: boolean;
 }
 
 export interface InstructorRequest {
@@ -61,10 +61,11 @@ export interface Course {
   instructor?: User;
   modules: Module[];
   createdAt: string;
-
   enrolledCount?: number;
   rating?: number;
   quizzes?: Quiz[];
+  is_coded?: boolean;
+  prerequis_formations?: { id: string; titre: string }[];
 }
 
 export interface Module {

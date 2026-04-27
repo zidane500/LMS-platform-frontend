@@ -9,10 +9,12 @@ import {
   Tooltip,
   Legend,
   Filler,
+  type ChartOptions,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import api from "../services/api";
 import { Loader2 } from "lucide-react";
+import { useDarkMode } from "../hooks/useDarkMode";
 
 // ✅ Enregistrement Chart.js (obligatoire une seule fois)
 ChartJS.register(
@@ -38,6 +40,22 @@ export const InstructorChart: React.FC = () => {
   const [data, setData] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [formationNom, setFormationNom] = useState("");
+  const isDark = useDarkMode();
+  const textColor = isDark ? "#cbd5e1" : "#334155";
+  const titleColor = isDark ? "#e2e8f0" : "#1e293b";
+  const gridColor = isDark
+    ? "rgba(148, 163, 184, 0.14)"
+    : "rgba(71, 85, 105, 0.16)";
+
+  const chartBgColor = isDark
+    ? "rgba(99, 102, 241, 0.14)"
+    : "rgba(99, 102, 241, 0.18)";
+
+  const cardClass =
+    "border rounded-2xl p-6 space-y-4 " +
+    (isDark
+      ? "bg-slate-800/50 border-slate-700/50"
+      : "bg-white border-gray-200 shadow-sm");
 
   // Charger la liste des formations
   useEffect(() => {
@@ -73,7 +91,7 @@ export const InstructorChart: React.FC = () => {
         data,
         fill: true,
         borderColor: "rgb(99, 102, 241)",
-        backgroundColor: "rgba(99, 102, 241, 0.1)",
+        backgroundColor: chartBgColor,
         tension: 0.4,
         pointBackgroundColor: "rgb(99, 102, 241)",
         pointRadius: 5,
@@ -81,7 +99,7 @@ export const InstructorChart: React.FC = () => {
     ],
   };
 
-  const options = {
+  const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -91,42 +109,61 @@ export const InstructorChart: React.FC = () => {
         text: formationNom
           ? `Inscriptions — ${formationNom}`
           : "Inscriptions par semaine",
-        color: "#94a3b8",
-        font: { size: 14 },
+        color: titleColor,
+        font: {
+          size: 14,
+          weight: 600,
+        },
+      },
+      tooltip: {
+        titleColor: "#ffffff",
+        bodyColor: "#ffffff",
+        backgroundColor: "rgba(15, 23, 42, 0.95)",
       },
     },
     scales: {
       y: {
         beginAtZero: true,
-        ticks: { color: "#94a3b8", stepSize: 1 },
-        grid: { color: "rgba(148,163,184,0.1)" },
+        ticks: {
+          color: textColor,
+          stepSize: 1,
+        },
+        grid: {
+          color: gridColor,
+        },
       },
       x: {
-        ticks: { color: "#94a3b8" },
-        grid: { color: "rgba(148,163,184,0.1)" },
+        ticks: {
+          color: textColor,
+        },
+        grid: {
+          color: gridColor,
+        },
       },
     },
   };
 
   if (formations.length === 0) {
     return (
-      <div className="bg-slate-800/50 rounded-2xl p-6 text-center text-slate-400 text-sm">
+      <div
+        className={`${cardClass} text-center text-sm text-slate-600 dark:text-slate-400`}
+      >
         Aucune formation créée pour le moment.
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 space-y-4">
+    <div className={cardClass}>
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="text-white font-semibold text-sm">
+        <h3 className="text-slate-900 dark:text-white font-semibold text-sm">
           📈 Inscriptions par semaine
         </h3>
         {/* Sélecteur de formation */}
         <select
           value={selectedId ?? ""}
           onChange={(e) => setSelectedId(Number(e.target.value))}
-          className="text-sm bg-slate-700 text-white border border-slate-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="text-sm rounded-lg px-3 py-1.5 border bg-slate-100 text-slate-900 border-slate-300 dark:bg-slate-700 dark:text-white dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           {formations.map((f) => (
             <option key={f.id} value={f.id}>

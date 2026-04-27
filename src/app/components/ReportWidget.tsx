@@ -115,7 +115,7 @@ export const ReportWidget: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Résumé <span className="text-red-500">*</span>
+                      Problème principal <span className="text-red-500">*</span>
                     </label>
                     <span
                       className={`text-xs ${resume.length > 90 ? "text-orange-400" : "text-gray-400"}`}

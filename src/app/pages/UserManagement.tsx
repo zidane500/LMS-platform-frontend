@@ -1,8 +1,7 @@
-// src/app/pages/UserManagement.tsx — connecté au vrai backend
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { Users, Edit2, Trash2, Search, RefreshCw } from "lucide-react";
+import { Users, Edit2, Trash2, Search, RefreshCw, Code } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
   getAllUsers,
@@ -33,27 +32,30 @@ import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { toast } from "sonner";
 import type { User } from "../types";
 import axios from "axios";
+import api from "../services/api";
 
 export const UserManagement: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // ✅ State pour le toggle peut_coder en cours
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
   if (!currentUser || currentUser.role !== "admin") {
     navigate("/app");
     return null;
   }
 
-  // Chargement des utilisateurs depuis l'API
   const loadUsers = async () => {
     setLoading(true);
     try {
@@ -69,12 +71,34 @@ export const UserManagement: React.FC = () => {
   useEffect(() => {
     loadUsers();
   }, [roleFilter]);
-
-  // Recherche avec délai (debounce simple)
   useEffect(() => {
     const t = setTimeout(() => loadUsers(), 400);
     return () => clearTimeout(t);
   }, [searchQuery]);
+
+  // ✅ Toggle peut_coder
+  const handleTogglePeutCoder = async (user: User) => {
+    setTogglingId(user.id);
+    try {
+      const res = await api.post(`/admin/users/${user.id}/toggle-peut-coder`);
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id ? { ...u, peut_coder: res.data.peut_coder } : u,
+        ),
+      );
+      toast.success(
+        res.data.peut_coder
+          ? `${user.firstName} peut maintenant créer des formations codées`
+          : `Droit révoqué pour ${user.firstName}`,
+      );
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error))
+        toast.error(error.response?.data?.message || "Erreur");
+      else toast.error("Une erreur est survenue");
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const handleUpdateUser = async () => {
     if (!editingUser) return;
@@ -209,7 +233,8 @@ export const UserManagement: React.FC = () => {
                 >
                   <Card className="hover:shadow-md transition-shadow">
                     <CardContent className="p-4">
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                        {/* Gauche : avatar + infos */}
                         <div className="flex items-center gap-4 min-w-0">
                           <Avatar className="w-12 h-12 shrink-0">
                             <AvatarImage src={user.avatar} />
@@ -218,6 +243,7 @@ export const UserManagement: React.FC = () => {
                               {user.lastName[0]}
                             </AvatarFallback>
                           </Avatar>
+
                           <div className="min-w-0">
                             <p className="font-semibold text-gray-900 dark:text-white truncate">
                               {user.firstName} {user.lastName}
@@ -227,20 +253,72 @@ export const UserManagement: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
+
+                        {/* Milieu : rôle */}
+                        <div className="flex justify-center">
                           <Badge
                             className={roleBadgeClass(user.role || "learner")}
                           >
                             {roleLabel(user.role || "learner")}
                           </Badge>
+                        </div>
+
+                        {/* Droite : actions */}
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                          {user.role === "instructor" && (
+                            <button
+                              onClick={() => handleTogglePeutCoder(user)}
+                              disabled={togglingId === user.id}
+                              title={
+                                user.peut_coder
+                                  ? "Révoquer le droit de créer des formations codées"
+                                  : "Autoriser à créer des formations codées"
+                              }
+                              className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all disabled:opacity-50 ${
+                                user.peut_coder
+                                  ? "bg-purple-100 border-purple-300 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300"
+                                  : "bg-gray-100 border-gray-300 text-gray-500 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-400"
+                              }`}
+                            >
+                              {togglingId === user.id ? (
+                                <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Code className="w-3 h-3" />
+                              )}
+
+                              <span
+                                className={`relative w-8 h-4 rounded-full transition-colors ${
+                                  user.peut_coder
+                                    ? "bg-purple-500"
+                                    : "bg-gray-300 dark:bg-slate-600"
+                                }`}
+                              >
+                                <span
+                                  className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${
+                                    user.peut_coder
+                                      ? "translate-x-4"
+                                      : "translate-x-0"
+                                  }`}
+                                />
+                              </span>
+
+                              <span className="hidden sm:inline">
+                                {user.peut_coder ? "Codé ON" : "Codé OFF"}
+                              </span>
+                            </button>
+                          )}
+
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setEditingUser({ ...user })}
+                            onClick={() =>
+                              navigate(`/app/profile/edit/${user.id}`)
+                            }
                             className="gap-1"
                           >
                             <Edit2 className="w-3 h-3" /> Modifier
                           </Button>
+
                           {user.id !== currentUser.id && (
                             <Button
                               variant="destructive"

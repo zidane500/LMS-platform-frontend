@@ -42,6 +42,11 @@ import { toast } from "sonner";
 import axios from "axios";
 import type { Course, Content, ContentType } from "../types";
 
+import { CodedFormationLock } from "../components/CodedFormationLock";
+import { verifierAccesFormation } from "../services/formationService";
+
+import { useTimeTracking } from "../hooks/useTimeTracking";
+
 // ── Icône contenu ─────────────────────────────────────────
 const ContentIcon: React.FC<{ type: ContentType; className?: string }> = ({
   type,
@@ -72,7 +77,9 @@ export const CourseDetail: React.FC = () => {
   const [pageLoading, setPageLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
-
+  const [isCoded, setIsCoded] = useState(false);
+  const [aAcces, setAAcces] = useState(true);
+  const [checkingAcces, setCheckingAcces] = useState(true);
   // Contenus
   const [moduleContenus, setModuleContenus] = useState<
     Record<string, (Content & { progression?: any })[]>
@@ -90,7 +97,19 @@ export const CourseDetail: React.FC = () => {
     moduleId: string;
     content: Content & { progression?: any };
   } | null>(null);
+  // ✅ Accès pour le tracking du temps
+  const isInstructorOrAdminForTracking =
+    currentUser?.role === "instructor" || currentUser?.role === "admin";
 
+  const isOwnerInstructorForTracking =
+    isInstructorOrAdminForTracking &&
+    String((course as any)?.instructorId) === String(currentUser?.id);
+
+  const canAccessForTracking =
+    isOwnerInstructorForTracking || currentUser?.role === "admin" || isEnrolled;
+
+  // ✅ Démarrer le suivi du temps uniquement si l'utilisateur a accès
+  useTimeTracking(courseId ?? "", Boolean(courseId && canAccessForTracking));
   const chargerProgression = async (
     formationId: string,
   ): Promise<ProgressionFormation | null> => {
@@ -179,6 +198,29 @@ export const CourseDetail: React.FC = () => {
       .finally(() => setPageLoading(false));
   }, [courseId, currentUser]);
 
+  useEffect(() => {
+    if (!courseId || !currentUser) return;
+
+    // Admin → accès total sans vérification
+    if (currentUser.role === "admin") {
+      setIsCoded(false);
+      setAAcces(true);
+      setCheckingAcces(false);
+      return;
+    }
+
+    verifierAccesFormation(courseId)
+      .then((data) => {
+        setIsCoded(data.is_coded);
+
+        // ✅ Formateur propriétaire → accès direct (même si formation codée)
+        const estProprietaire = (data as any).est_proprietaire === true;
+        setAAcces(data.a_acces || estProprietaire);
+      })
+      .catch(() => setAAcces(true))
+      .finally(() => setCheckingAcces(false));
+  }, [courseId, currentUser]);
+
   if (pageLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-950">
@@ -187,6 +229,24 @@ export const CourseDetail: React.FC = () => {
           <p className="text-slate-400">Chargement de la formation...</p>
         </div>
       </div>
+    );
+  }
+
+  if (checkingAcces) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    );
+  }
+
+  if (isCoded && !aAcces) {
+    return (
+      <CodedFormationLock
+        formationId={courseId!}
+        formationTitre={course?.title ?? ""}
+        onAccesAccorde={() => setAAcces(true)}
+      />
     );
   }
 

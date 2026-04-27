@@ -1,8 +1,7 @@
-// src/app/pages/Courses.tsx
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
-import { Search, Plus, BookOpen, RefreshCw } from "lucide-react";
+import { Search, Plus, BookOpen, RefreshCw, Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
   getFormations,
@@ -31,7 +30,6 @@ import {
 import { toast } from "sonner";
 import type { Course } from "../types";
 import axios from "axios";
-
 import type { Instructor } from "../services/formationService";
 
 export const Courses: React.FC = () => {
@@ -53,6 +51,8 @@ export const Courses: React.FC = () => {
   const [selectedStatut, setSelectedStatut] = useState("all");
   const [selectedInstructor, setSelectedInstructor] = useState("all");
   const [showMine, setShowMine] = useState(false);
+  // ✅ Fix 5 — Filtre formations codées
+  const [filtreCode, setFiltreCode] = useState(false);
 
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -69,6 +69,8 @@ export const Courses: React.FC = () => {
         statut: selectedStatut !== "all" ? selectedStatut : undefined,
         formateur_id:
           selectedInstructor !== "all" ? selectedInstructor : undefined,
+        // ✅ Fix 5 — passer le filtre is_coded
+        is_coded: filtreCode ? true : undefined,
       });
       setCourses(data);
     } catch {
@@ -83,9 +85,9 @@ export const Courses: React.FC = () => {
     showMine,
     selectedStatut,
     selectedInstructor,
+    filtreCode, // ✅ dépendance ajoutée
   ]);
 
-  // Catégories et formateurs — chargés une seule fois
   useEffect(() => {
     getCategories()
       .then(setCategories)
@@ -95,13 +97,11 @@ export const Courses: React.FC = () => {
       .catch(() => {});
   }, []);
 
-  // Rechargement avec debounce sur la recherche texte
   useEffect(() => {
     const t = setTimeout(() => loadCourses(), searchQuery ? 400 : 0);
     return () => clearTimeout(t);
   }, [loadCourses]);
 
-  // ── Suppression ───────────────────────────────────────────
   const handleDeleteCourse = async () => {
     if (!courseToDelete) return;
     setDeleting(true);
@@ -126,8 +126,6 @@ export const Courses: React.FC = () => {
     return false;
   };
 
-  const canCreate = isInstructorOrAdmin;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900 dark:to-blue-900/10">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -139,13 +137,18 @@ export const Courses: React.FC = () => {
             </h1>
             <p className="text-gray-500 mt-1">
               {courses.length} formation(s) trouvée(s)
+              {filtreCode && (
+                <span className="ml-2 inline-flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
+                  <Lock className="w-3 h-3" /> Codées uniquement
+                </span>
+              )}
             </p>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={loadCourses} className="gap-2">
               <RefreshCw className="w-4 h-4" /> Actualiser
             </Button>
-            {canCreate && (
+            {isInstructorOrAdmin && (
               <Button
                 onClick={() => navigate("/app/courses/create")}
                 className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600"
@@ -158,7 +161,7 @@ export const Courses: React.FC = () => {
 
         {/* ── Filtres ── */}
         <div className="flex flex-wrap gap-3">
-          {/* Recherche texte */}
+          {/* Recherche */}
           <div className="relative flex-1 min-w-60">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
@@ -197,7 +200,7 @@ export const Courses: React.FC = () => {
             </SelectContent>
           </Select>
 
-          {/* Formateur — visible par tous */}
+          {/* Formateur */}
           {instructors.length > 0 && (
             <Select
               value={selectedInstructor}
@@ -217,7 +220,7 @@ export const Courses: React.FC = () => {
             </Select>
           )}
 
-          {/* Statut — formateur et admin seulement */}
+          {/* Statut */}
           {isInstructorOrAdmin && (
             <Select value={selectedStatut} onValueChange={setSelectedStatut}>
               <SelectTrigger className="w-44">
@@ -230,7 +233,7 @@ export const Courses: React.FC = () => {
             </Select>
           )}
 
-          {/* Mes formations — formateur et admin seulement */}
+          {/* Mes formations */}
           {isInstructorOrAdmin && (
             <Button
               variant={showMine ? "default" : "outline"}
@@ -242,6 +245,22 @@ export const Courses: React.FC = () => {
               {showMine ? "✓ Mes formations" : "Mes formations"}
             </Button>
           )}
+
+          {/* ✅ Fix 5 — Bouton filtre formations codées */}
+          <button
+            onClick={() => setFiltreCode(!filtreCode)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+              filtreCode
+                ? "bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/25"
+                : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-purple-400 dark:hover:border-purple-600"
+            }`}
+          >
+            <Lock className="w-4 h-4" />
+            Codées
+            {filtreCode && (
+              <span className="ml-1 w-2 h-2 rounded-full bg-white/70 inline-block" />
+            )}
+          </button>
         </div>
 
         {/* ── Grille de formations ── */}
@@ -253,10 +272,14 @@ export const Courses: React.FC = () => {
           <div className="text-center py-16">
             <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-xl font-semibold text-gray-500">
-              Aucune formation trouvée
+              {filtreCode
+                ? "Aucune formation codée trouvée"
+                : "Aucune formation trouvée"}
             </p>
             <p className="text-gray-400 mt-1">
-              Essayez de modifier vos filtres de recherche
+              {filtreCode
+                ? "Il n'existe pas encore de formations codées correspondantes"
+                : "Essayez de modifier vos filtres de recherche"}
             </p>
           </div>
         ) : (
@@ -293,7 +316,7 @@ export const Courses: React.FC = () => {
         )}
       </div>
 
-      {/* ── Modale confirmation suppression ── */}
+      {/* ── Modale suppression ── */}
       <Dialog
         open={!!courseToDelete}
         onOpenChange={() => setCourseToDelete(null)}
@@ -302,9 +325,8 @@ export const Courses: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Supprimer la formation ?</DialogTitle>
             <DialogDescription>
-              Cette action est irréversible. Tous les modules et contenus
-              associés seront supprimés. Les apprenants inscrits seront
-              notifiés.
+              Cette action est irréversible. Tous les modules et contenus seront
+              supprimés.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

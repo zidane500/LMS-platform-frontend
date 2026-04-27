@@ -1,22 +1,20 @@
-// src/app/pages/CreateCourse.tsx — connecté au vrai backend
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { ArrowLeft, Plus, X, Upload } from "lucide-react";
+import { ArrowLeft, Plus, X, Upload, Lock, RefreshCw } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { createFormation } from "../services/formationService";
+import { getMe } from "../services/authService";
+import {
+  createFormation,
+  getFormations,
+  mapApiFormation,
+  mapLevelToBackend,
+} from "../services/formationService";
+import api from "../services/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-
-import {
-  mapApiFormation,
-  mapLevelToBackend,
-} from "../services/formationService";
-
-import api from "../services/api";
-
 import {
   Card,
   CardContent,
@@ -32,14 +30,24 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
-import type { CourseLevel } from "../types";
+import type { CourseLevel, Course } from "../types";
 import axios from "axios";
 
 export const CreateCourse: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, setCurrentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+
+  // ✅ Formations codées
+  const [isCoded, setIsCoded] = useState(false);
+  const [code, setCode] = useState("");
+  const [allFormations, setAllFormations] = useState<Course[]>([]);
+  const [selectedPrerequisIds, setSelectedPrerequisIds] = useState<string[]>(
+    [],
+  );
+  const [loadingFormations, setLoadingFormations] = useState(false);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -51,6 +59,39 @@ export const CreateCourse: React.FC = () => {
   });
   const [prerequisites, setPrerequisites] = useState<string[]>([]);
   const [newPrerequisite, setNewPrerequisite] = useState("");
+
+  const canCreateCoded =
+    currentUser?.role === "admin" ||
+    (currentUser?.role === "instructor" && (currentUser as any).peut_coder);
+
+  useEffect(() => {
+    if (currentUser?.role === "instructor") {
+      getMe()
+        .then((freshUser) => {
+          setCurrentUser(freshUser);
+          localStorage.setItem("auth_user", JSON.stringify(freshUser));
+        })
+        .catch(() => {});
+    }
+  }, []);
+  // Charger toutes les formations publiées pour les prérequis
+  useEffect(() => {
+    if (!isCoded) return;
+    setLoadingFormations(true);
+    getFormations({ statut: "publie" })
+      .then(setAllFormations)
+      .catch(() => toast.error("Impossible de charger les formations"))
+      .finally(() => setLoadingFormations(false));
+  }, [isCoded]);
+
+  // Générer un code aléatoire
+  const generateCode = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < 8; i++)
+      result += chars[Math.floor(Math.random() * chars.length)];
+    setCode(result);
+  };
 
   if (currentUser?.role !== "instructor" && currentUser?.role !== "admin") {
     navigate("/app");
@@ -68,6 +109,12 @@ export const CreateCourse: React.FC = () => {
     }
   };
 
+  const togglePrerequis = (id: string) => {
+    setSelectedPrerequisIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (
@@ -82,32 +129,37 @@ export const CreateCourse: React.FC = () => {
       toast.error("La durée doit être au moins 1 heure");
       return;
     }
+    if (isCoded && code.length !== 8) {
+      toast.error("Le code doit contenir exactement 8 caractères");
+      return;
+    }
+
     setLoading(true);
     try {
-      // Si fichier local → envoyer en multipart
-      console.log("FILE =", thumbnailFile);
-      if (thumbnailFile) {
-        const fd = new FormData();
-        fd.append("titre", formData.title);
-        fd.append("description", formData.description);
-        fd.append("categorie", formData.category);
-        fd.append("niveau", mapLevelToBackend(formData.level));
-        fd.append("duree_estimee", String(formData.estimatedDuration));
-        fd.append("statut", formData.statut);
-        fd.append("miniature_fichier", thumbnailFile); // ← le fichier image
-        prerequisites.forEach((p) => fd.append("prerequis[]", p));
+      const fd = new FormData();
+      fd.append("titre", formData.title);
+      fd.append("description", formData.description);
+      fd.append("categorie", formData.category);
+      fd.append("niveau", mapLevelToBackend(formData.level));
+      fd.append("duree_estimee", String(formData.estimatedDuration));
+      fd.append("statut", formData.statut);
+      prerequisites.forEach((p) => fd.append("prerequis[]", p));
 
-        const res = await api.post("/formations", fd);
+      if (thumbnailFile) fd.append("miniature_fichier", thumbnailFile);
 
-        const course = mapApiFormation(res.data.formation);
-        toast.success("Formation créée !");
-        navigate(`/app/courses/edit/${course.id}`);
-      } else {
-        // URL externe → appel normal
-        const course = await createFormation({ ...formData, prerequisites });
-        toast.success("Formation créée !");
-        navigate(`/app/courses/edit/${course.id}`);
+      // ✅ Champs formation codée
+      if (isCoded) {
+        fd.append("is_coded", "1");
+        fd.append("code", code.toUpperCase());
+        selectedPrerequisIds.forEach((id) =>
+          fd.append("prerequis_formation_ids[]", id),
+        );
       }
+
+      const res = await api.post("/formations", fd);
+      const course = mapApiFormation(res.data.formation);
+      toast.success("Formation créée !");
+      navigate(`/app/courses/edit/${course.id}`);
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         const errors = error.response?.data?.errors;
@@ -128,7 +180,7 @@ export const CreateCourse: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black-50 to-blue-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-slate-950 dark:to-blue-950/30">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         <Button
           variant="ghost"
@@ -142,13 +194,12 @@ export const CreateCourse: React.FC = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             Créer une formation
           </h1>
-          <p className="text-gray-500 mt-1">
-            Remplissez les informations de base. Vous pourrez ajouter les
-            modules ensuite.
+          <p className="text-gray-500 dark:text-slate-400 mt-1">
+            Remplissez les informations de base.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Informations générales</CardTitle>
@@ -171,7 +222,7 @@ export const CreateCourse: React.FC = () => {
                 <Textarea
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
-                  placeholder="Décrivez les objectifs et le contenu de la formation..."
+                  placeholder="Décrivez les objectifs et le contenu..."
                   rows={4}
                   required
                 />
@@ -244,19 +295,13 @@ export const CreateCourse: React.FC = () => {
                 </div>
               </div>
 
-              {/* Miniature — URL ou fichier local */}
+              {/* Miniature */}
               <div className="space-y-2">
-                <Label>Miniature de la formation</Label>
-
-                {/* Option 1 : URL externe */}
-
-                <p className="text-xs text-gray-400 text-center">— ou —</p>
-
-                {/* Option 2 : fichier local */}
-                <label className="block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 transition-colors">
+                <Label>Miniature</Label>
+                <label className="block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 transition-colors dark:border-slate-700 dark:hover:border-blue-500">
                   <Upload className="w-6 h-6 mx-auto mb-1 text-gray-400" />
-                  <p className="text-sm text-gray-600">
-                    Choisir une image depuis votre machine
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
+                    Choisir une image
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     JPG, PNG — max 5MB
@@ -269,32 +314,28 @@ export const CreateCourse: React.FC = () => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       if (file.size > 5 * 1024 * 1024) {
-                        toast.error("Image trop grande — max 5MB");
+                        toast.error("Max 5MB");
                         return;
                       }
                       setThumbnailFile(file);
-                      const localUrl = URL.createObjectURL(file);
-                      handleChange("thumbnail", localUrl);
+                      handleChange("thumbnail", URL.createObjectURL(file));
                     }}
                   />
                 </label>
-
-                {/* Aperçu */}
                 {formData.thumbnail && (
                   <div className="relative">
                     <img
                       src={formData.thumbnail}
-                      alt="Aperçu miniature"
-                      className="w-full h-48 object-cover object-center rounded-lg mt-2 border bg-white"
-                      onError={(e) => {
-                        e.currentTarget.src =
-                          "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80";
-                      }}
+                      alt="Aperçu"
+                      className="w-full h-48 object-cover rounded-lg border"
                     />
                     <button
                       type="button"
-                      onClick={() => handleChange("thumbnail", "")}
-                      className="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow"
+                      onClick={() => {
+                        handleChange("thumbnail", "");
+                        setThumbnailFile(null);
+                      }}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -302,9 +343,9 @@ export const CreateCourse: React.FC = () => {
                 )}
               </div>
 
-              {/* Prérequis */}
+              {/* Prérequis texte */}
               <div className="space-y-2">
-                <Label>Prérequis</Label>
+                <Label>Prérequis textuels</Label>
                 <div className="flex gap-2">
                   <Input
                     value={newPrerequisite}
@@ -347,8 +388,210 @@ export const CreateCourse: React.FC = () => {
             </CardContent>
           </Card>
 
+          {/* ✅ Section Formation Codée */}
+          {canCreateCoded && (
+            <Card
+              className={
+                isCoded
+                  ? "border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-950/20"
+                  : "dark:border-slate-700"
+              }
+            >
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Lock
+                      className={`w-5 h-5 ${isCoded ? "text-purple-600" : "text-gray-400"}`}
+                    />
+                    <div>
+                      <CardTitle className="text-base">
+                        Formation codée
+                      </CardTitle>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                        Protège l'accès par un code obtenu via des certificats
+                        prérequis
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle switch */}
+                  <button
+                    type="button"
+                    onClick={() => setIsCoded(!isCoded)}
+                    className={`relative inline-flex w-12 h-6 rounded-full transition-colors focus:outline-none ${
+                      isCoded
+                        ? "bg-purple-500"
+                        : "bg-gray-300 dark:bg-slate-600"
+                    }`}
+                  >
+                    <span
+                      className={`absolute left-1 top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        isCoded ? "translate-x-6" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </CardHeader>
+
+              {isCoded && (
+                <CardContent className="space-y-5 pt-0">
+                  {/* Code d'accès */}
+                  <div className="space-y-2">
+                    <Label>Code d'accès (8 caractères) *</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={code}
+                        onChange={(e) => {
+                          const val = e.target.value
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9]/g, "");
+                          if (val.length <= 8) setCode(val);
+                        }}
+                        placeholder="Ex: ABCD1234"
+                        maxLength={8}
+                        className="font-mono tracking-widest text-center text-lg uppercase"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={generateCode}
+                        className="gap-2 shrink-0"
+                      >
+                        <RefreshCw className="w-4 h-4" /> Générer
+                      </Button>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>Uniquement lettres majuscules et chiffres</span>
+                      <span
+                        className={
+                          code.length === 8 ? "text-green-500 font-medium" : ""
+                        }
+                      >
+                        {code.length}/8
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Formations prérequises */}
+                  <div className="space-y-2">
+                    <Label>
+                      Formations prérequises{" "}
+                      <span className="text-gray-400 font-normal">
+                        (l'apprenant doit avoir leurs certificats pour obtenir
+                        le code)
+                      </span>
+                    </Label>
+
+                    {loadingFormations ? (
+                      <div className="flex items-center gap-2 py-3 text-sm text-gray-400">
+                        <span className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                        Chargement...
+                      </div>
+                    ) : allFormations.length === 0 ? (
+                      <p className="text-sm text-gray-400 py-2">
+                        Aucune formation publiée disponible comme prérequis.
+                      </p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto space-y-1 border rounded-xl p-2 dark:border-slate-700">
+                        {allFormations
+                          .filter((f) => f.id !== "new")
+                          .map((f) => {
+                            const selected = selectedPrerequisIds.includes(
+                              String(f.id),
+                            );
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => togglePrerequis(String(f.id))}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm transition-colors ${
+                                  selected
+                                    ? "bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700"
+                                    : "hover:bg-gray-50 dark:hover:bg-slate-800 border border-transparent"
+                                }`}
+                              >
+                                <span
+                                  className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                                    selected
+                                      ? "bg-purple-500 border-purple-500"
+                                      : "border-gray-300 dark:border-slate-600"
+                                  }`}
+                                >
+                                  {selected && (
+                                    <svg
+                                      className="w-2.5 h-2.5 text-white"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      strokeWidth={3}
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M5 13l4 4L19 7"
+                                      />
+                                    </svg>
+                                  )}
+                                </span>
+                                <span
+                                  className={
+                                    selected
+                                      ? "text-purple-700 dark:text-purple-300 font-medium"
+                                      : "text-gray-700 dark:text-slate-300"
+                                  }
+                                >
+                                  {f.title}
+                                </span>
+                                {f.category && (
+                                  <span className="ml-auto text-xs text-gray-400 shrink-0">
+                                    {f.category}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    )}
+
+                    {selectedPrerequisIds.length > 0 && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
+                        {selectedPrerequisIds.length} formation(s)
+                        sélectionnée(s) comme prérequis
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Info box */}
+                  <div className="bg-purple-100 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-sm text-purple-800 dark:text-purple-300">
+                    <p className="font-semibold mb-1">
+                      📋 Comment ça fonctionne :
+                    </p>
+                    <ul className="space-y-1 text-xs">
+                      <li>
+                        • Les apprenants doivent obtenir les certificats des
+                        formations prérequises
+                      </li>
+                      <li>
+                        • Dès qu'ils complètent un prérequis, ils reçoivent une
+                        notification
+                      </li>
+                      <li>
+                        • Quand tous les prérequis sont complétés, le code leur
+                        est envoyé automatiquement
+                      </li>
+                      <li>
+                        • Ils saisissent le code sur la page de la formation
+                        pour y accéder
+                      </li>
+                    </ul>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
+
           {/* Actions */}
-          <div className="flex gap-4 mt-6">
+          <div className="flex gap-4">
             <motion.div whileHover={{ scale: 1.02 }} className="flex-1">
               <Button
                 type="submit"
