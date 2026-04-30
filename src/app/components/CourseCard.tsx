@@ -1,6 +1,14 @@
 import React from "react";
 import { motion } from "motion/react";
-import { Clock, BookOpen, User, Edit, Trash2, Lock } from "lucide-react";
+import {
+  Clock,
+  BookOpen,
+  User,
+  Edit,
+  Trash2,
+  Lock,
+  Unlock,
+} from "lucide-react";
 import { Course } from "../types";
 import { Card, CardContent, CardFooter } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -12,6 +20,7 @@ interface CourseCardProps {
   progress?: number;
   isEnrolled?: boolean;
   hasCertificate?: boolean;
+  isUnlocked?: boolean;
   onEnroll?: () => void;
   onView: () => void;
   onEdit?: () => void;
@@ -24,6 +33,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   progress,
   isEnrolled = false,
   hasCertificate = false,
+  isUnlocked = false,
   onEnroll,
   onView,
   onEdit,
@@ -63,17 +73,28 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             }}
           />
 
-          {/* ✅ Fix 4 — Icône cadenas formation codée (coin supérieur droit) */}
+          {/* 🔐 Icône formation codée */}
           {course.is_coded && (
             <div className="absolute top-2 right-2 z-10">
-              <div
-                className="flex items-center gap-1.5 bg-purple-600/90 backdrop-blur-sm
-                              text-white text-xs font-semibold px-2.5 py-1.5 rounded-full
-                              shadow-lg shadow-purple-900/30 border border-purple-400/30"
-              >
-                <Lock className="w-3 h-3" />
-                <span>Bloqué</span>
-              </div>
+              {isUnlocked ? (
+                <div
+                  className="flex items-center gap-1.5 bg-green-600/90 backdrop-blur-sm
+                    text-white text-xs font-semibold px-2.5 py-1.5 rounded-full
+                    shadow-lg shadow-green-900/30 border border-green-400/30"
+                >
+                  <Unlock className="w-3 h-3" />
+                  <span>Débloquée</span>
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-1.5 bg-purple-600/90 backdrop-blur-sm
+                    text-white text-xs font-semibold px-2.5 py-1.5 rounded-full
+                    shadow-lg shadow-purple-900/30 border border-purple-400/30"
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>Bloquée</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -157,7 +178,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             )}
           </div>
 
-          {/* ✅ Formations prérequises (visible si codée et prérequis définis) */}
+          {/* Formations prérequises */}
           {course.is_coded &&
             course.prerequis_formations &&
             course.prerequis_formations.length > 0 && (
@@ -194,23 +215,21 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
         {/* ── Footer ── */}
         <CardFooter className="p-6 pt-0 flex flex-col gap-2">
-          {/* Affichage du badge "Vous êtes terminé" si l'utilisateur a un certificat */}
           {hasCertificate && (
             <span
               className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full
-                font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
-                border border-yellow-200 dark:border-yellow-800 self-center"
+                     font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
+                     border border-yellow-200 dark:border-yellow-800 self-center"
             >
-              Vous êtes terminé
+              🎓 Formation terminée
             </span>
           )}
 
-          {/* Affichage du badge "Vous êtes inscrit" si l'utilisateur est inscrit */}
-          {isEnrolled && !hasCertificate && (
+          {isEnrolled && (
             <span
               className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full
-                font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
-                border border-green-200 dark:border-green-800 self-center"
+                     font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                     border border-green-200 dark:border-green-800 self-center"
             >
               <svg
                 className="w-3 h-3"
@@ -229,8 +248,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </span>
           )}
 
-          {/* ✅ Badge formation terminée avec certificat */}
-
           <motion.div
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -238,19 +255,14 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           >
             {progress !== undefined ? (
               <Button onClick={onView} className="w-full">
-                Continuer le cours
+                {hasCertificate ? "Revoir le cours" : "Continuer le cours"}
               </Button>
             ) : (
               <Button
                 onClick={onEnroll || onView}
-                variant={course.is_coded ? "default" : "outline"}
-                className={`w-full ${
-                  course.is_coded
-                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0"
-                    : ""
-                }`}
+                variant="outline"
+                className="w-full"
               >
-                {course.is_coded && <Lock className="w-3.5 h-3.5 mr-1.5" />}
                 Voir le cours
               </Button>
             )}

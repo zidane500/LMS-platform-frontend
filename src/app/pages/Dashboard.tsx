@@ -367,70 +367,6 @@ export const Dashboard: React.FC = () => {
                 </CardContent>
               </Card>
             </motion.div>
-
-            {/* Aperçu formations */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-            >
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <BookOpen className="w-5 h-5 text-blue-600" /> Formations
-                      récentes
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate("/app/courses")}
-                      className="gap-1 text-xs"
-                    >
-                      Voir toutes <ChevronRight className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {adminLoading ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {adminFormations.slice(0, 3).map((f: any) => (
-                        <div
-                          key={f.id}
-                          className="p-4 rounded-xl border dark:border-slate-700 hover:border-blue-500 transition-colors cursor-pointer"
-                          onClick={() => navigate(`/app/courses/${f.id}`)}
-                        >
-                          <p className="font-semibold text-sm dark:text-white truncate">
-                            {f.title || f.titre}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                f.statut === "publie" ||
-                                f.status === "published"
-                                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                  : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                              }`}
-                            >
-                              {f.statut === "publie" || f.status === "published"
-                                ? "Publié"
-                                : "Brouillon"}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {f.modules?.length ?? 0} module(s)
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
           </>
         )}
 
@@ -439,86 +375,47 @@ export const Dashboard: React.FC = () => {
         ════════════════════════════════════════ */}
         {(isLearner || isInstructor) && (
           <>
-            {/* Bloc formateur */}
-            {isInstructor && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-              >
-                <Card className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
-                  <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-xl font-bold mb-1">
-                        🎓 Espace Formateur
-                      </h3>
-                      <p className="text-blue-100 text-sm">
-                        Gérez vos formations et suivez vos apprenants
-                      </p>
-                    </div>
-                    <div className="flex gap-3">
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        onClick={() => navigate("/app/instructor/progress")}
-                        className="px-5 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold transition-colors text-sm"
-                      >
-                        📊 Progression apprenants
-                      </motion.button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-
             {/* Stats apprenant */}
-            {progressions.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-              >
-                <ProgressCard
-                  title="Formations suivies"
-                  value={progressions.length}
-                  icon="target"
-                  color="blue"
-                  suffix=""
-                />
-                <ProgressCard
-                  title="Progression moyenne"
-                  value={avgProgress}
-                  icon="zap"
-                  color="purple"
-                />
-                <ProgressCard
-                  title="Badges obtenus"
-                  value={badgesUniques.length}
-                  icon="award"
-                  color="green"
-                  suffix=""
-                />
-                <ProgressCard
-                  title="Quiz réussis"
-                  value={quizzesReussis}
-                  icon="trophy"
-                  color="orange"
-                  suffix=""
-                />
-              </motion.div>
-            )}
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
+              <ProgressCard
+                title="Formations suivies"
+                value={progressions.length}
+                icon="target"
+                color="blue"
+                suffix=""
+              />
+              <ProgressCard
+                title="Progression moyenne"
+                value={avgProgress}
+                icon="zap"
+                color="purple"
+              />
+              <ProgressCard
+                title="Badges obtenus"
+                value={badgesUniques.length}
+                icon="award"
+                color="green"
+                suffix=""
+              />
+              <ProgressCard
+                title="Quiz réussis"
+                value={quizzesReussis}
+                icon="trophy"
+                color="orange"
+                suffix=""
+              />
+            </motion.div>
 
             {/* ── Pour apprenant ── */}
-            {currentUser?.role === "learner" && (
+            {(isLearner || isInstructor) && (
               <div className="mt-8">
                 <ApprenantCharts />
-              </div>
-            )}
-
-            {/* ── Pour instructor ── */}
-            {currentUser?.role === "instructor" && (
-              <div className="mt-8">
-                <InstructorChart />
               </div>
             )}
 
@@ -699,6 +596,10 @@ export const Dashboard: React.FC = () => {
                             >
                               <CourseCard
                                 course={course}
+                                isUnlocked={
+                                  !course.is_coded ||
+                                  (course as any).aAcces === true
+                                }
                                 hasCertificate={certificatFormationIds.includes(
                                   String(course.id),
                                 )}
@@ -716,6 +617,42 @@ export const Dashboard: React.FC = () => {
                       </CardContent>
                     </Card>
                   </motion.div>
+                )}
+                {/* Bloc formateur */}
+                {isInstructor && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <Card className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+                      <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                          <h3 className="text-xl font-bold mb-1">
+                            🎓 Espace Formateur
+                          </h3>
+                          <p className="text-blue-100 text-sm">
+                            Gérez vos formations et suivez vos apprenants
+                          </p>
+                        </div>
+                        <div className="flex gap-3">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            onClick={() => navigate("/app/instructor/progress")}
+                            className="px-5 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold transition-colors text-sm"
+                          >
+                            📊 Progression apprenants
+                          </motion.button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
+                {/* ── Pour instructor ── */}
+                {currentUser?.role === "instructor" && (
+                  <div className="mt-8">
+                    <InstructorChart />
+                  </div>
                 )}
 
                 {/* CTA si aucune formation */}

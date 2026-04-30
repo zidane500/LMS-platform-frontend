@@ -18,6 +18,7 @@ import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationBell } from "./NotificationBell";
+import { Inbox } from "lucide-react";
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
@@ -57,6 +58,11 @@ export const Navbar: React.FC = () => {
     { path: "/app/courses", label: "Formations", icon: BookOpen },
     { path: "/app/profile", label: "Profil", icon: User },
   ];
+
+  // Si l'utilisateur est un instructor ou admin, ajoutez "Messages"
+  if (currentUser.role === "instructor" || currentUser.role === "admin") {
+    navItems.push({ path: "/app/inbox", label: "Messages", icon: Inbox });
+  }
 
   if (currentUser.role === "learner" || currentUser.role === "instructor") {
     navItems.push({

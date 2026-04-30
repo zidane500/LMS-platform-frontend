@@ -61,46 +61,56 @@ export function BadgesPage() {
 
   // ── Charger les badges depuis le backend ──────────────────
   useEffect(() => {
-    if (!currentUser || currentUser.role !== "learner") {
-      setLoading(false);
-      return;
-    }
-
     const load = async () => {
-      try {
-        const progressions = await getMesProgressions();
-        const details = await Promise.all(
-          progressions.map((p) =>
-            getProgression(p.formation_id).catch(() => null),
-          ),
+      // ✅ Pour les apprenants : charger leurs badges depuis le backend
+      if (currentUser?.role === "learner") {
+        try {
+          const progressions = await getMesProgressions();
+          const details = await Promise.all(
+            progressions.map((p) =>
+              getProgression(p.formation_id).catch(() => null),
+            ),
+          );
+          const badgesObtenus = details.flatMap((d) => d?.badges ?? []);
+          const badgesMapped: Badge[] = badgesObtenus.map((b) =>
+            mapBackendBadge(b, "unlocked"),
+          );
+
+          const dedup = new Map<string, Badge>();
+          badgesMapped.forEach((b) => {
+            if (
+              !dedup.has(b.id) ||
+              (b.unlockedAt &&
+                dedup.get(b.id)!.unlockedAt &&
+                b.unlockedAt > dedup.get(b.id)!.unlockedAt!)
+            ) {
+              dedup.set(b.id, b);
+            }
+          });
+          // Compléter avec le catalogue (badges non encore obtenus)
+          badgesCatalogue.forEach((b) => {
+            if (!dedup.has(b.id)) dedup.set(b.id, { ...b, status: "locked" });
+          });
+          setAllBadges(Array.from(dedup.values()));
+        } catch {
+          toast.error("Impossible de charger les badges");
+          // Fallback : afficher le catalogue verrouillé
+          setAllBadges(
+            badgesCatalogue.map((b) => ({ ...b, status: "locked" as const })),
+          );
+        }
+      } else {
+        // ✅ Pour formateurs et admins : afficher le catalogue complet (tous verrouillés)
+        // car les badges sont destinés aux apprenants
+        setAllBadges(
+          badgesCatalogue.map((b) => ({ ...b, status: "locked" as const })),
         );
-        const badgesObtenus = details.flatMap((d) => d?.badges ?? []);
-        const badgesMapped: Badge[] = badgesObtenus.map((b) =>
-          mapBackendBadge(b, "unlocked"),
-        );
-        const dedup = new Map<string, Badge>();
-        badgesMapped.forEach((b) => {
-          if (
-            !dedup.has(b.id) ||
-            (b.unlockedAt &&
-              dedup.get(b.id)!.unlockedAt &&
-              b.unlockedAt > dedup.get(b.id)!.unlockedAt!)
-          ) {
-            dedup.set(b.id, b);
-          }
-        });
-        badgesCatalogue.forEach((b) => {
-          if (!dedup.has(b.id)) dedup.set(b.id, { ...b, status: "locked" });
-        });
-        setAllBadges(Array.from(dedup.values()));
-      } catch {
-        toast.error("Impossible de charger les badges");
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
 
-    load();
+    if (currentUser) load();
+    else setLoading(false);
   }, [currentUser]);
 
   const stats = useMemo(() => {
@@ -210,10 +220,8 @@ export function BadgesPage() {
                 <span className="text-xs text-slate-400 uppercase tracking-widest">
                   Progression globale
                 </span>
-                <span className="text-lg font-bold text-white">
-                  {completionPct}%
-                </span>
               </div>
+
               <div className="w-full h-2 rounded-full bg-white/8 overflow-hidden mb-3">
                 <motion.div
                   initial={{ width: 0 }}
@@ -222,9 +230,16 @@ export function BadgesPage() {
                   className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500"
                 />
               </div>
-              <p className="text-[11px] text-slate-500">
-                {stats.unlocked} / {stats.total} badges débloqués
-              </p>
+
+              {/* ✅ Modification ici : une seule ligne avec flex */}
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-slate-500">
+                  {stats.unlocked} / {stats.total} badges débloqués
+                </p>
+                <span className="text-lg font-bold text-white">
+                  {completionPct}%
+                </span>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -245,14 +260,7 @@ export function BadgesPage() {
               bg: "from-emerald-500/20 to-teal-500/10",
               border: "border-emerald-500/20",
             },
-            {
-              icon: <Clock className="w-5 h-5" />,
-              label: "En cours",
-              value: stats.inProgress,
-              color: "text-amber-400",
-              bg: "from-amber-500/20 to-orange-500/10",
-              border: "border-amber-500/20",
-            },
+
             {
               icon: <Lock className="w-5 h-5" />,
               label: "Verrouillés",

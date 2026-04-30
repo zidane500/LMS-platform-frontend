@@ -131,19 +131,26 @@ export const InstructorChart: React.FC = () => {
         text: formationNom
           ? `Inscriptions — ${formationNom}`
           : "Inscriptions par semaine",
-        color: "#94a3b8",
+        color: isDark ? "#94a3b8" : "#374151",
         font: { size: 14 },
       },
     },
     scales: {
       y: {
         beginAtZero: true,
-        ticks: { color: "#94a3b8", stepSize: 1 },
-        grid: { color: "rgba(148,163,184,0.1)" },
+        ticks: {
+          color: isDark ? "#94a3b8" : "#6b7280",
+          stepSize: 1,
+        },
+        grid: {
+          color: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)",
+        },
       },
       x: {
-        ticks: { color: "#94a3b8" },
-        grid: { color: "rgba(148,163,184,0.1)" },
+        ticks: { color: isDark ? "#94a3b8" : "#6b7280" },
+        grid: {
+          color: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)",
+        },
       },
     },
   };
@@ -157,9 +164,9 @@ export const InstructorChart: React.FC = () => {
   }
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 space-y-4">
+    <div className={cardClass}>
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="text-white font-semibold text-sm">
+        <h3 className="font-semibold text-sm text-gray-900 dark:text-white">
           📈 Inscriptions par semaine
         </h3>
 
@@ -195,7 +202,11 @@ export const InstructorChart: React.FC = () => {
             <select
               value={selectedId ?? ""}
               onChange={(e) => setSelectedId(Number(e.target.value))}
-              className="text-sm bg-slate-700 text-white border border-slate-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className={`text-sm rounded-lg px-3 py-1.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                isDark
+                  ? "bg-slate-700 text-white border-slate-600"
+                  : "bg-white text-gray-900 border-gray-300"
+              }`}
             >
               {formations.map((f) => (
                 <option key={f.id} value={f.id}>

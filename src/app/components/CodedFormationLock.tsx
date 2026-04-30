@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import {
   Lock,
@@ -8,10 +9,13 @@ import {
   CheckCircle,
   Circle,
   BookOpen,
+  ArrowLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 import api from "../services/api";
+import { useUnlockedFormations } from "../hooks/useUnlockedFormations";
 
 interface PrerequiItem {
   id: string;
@@ -30,18 +34,21 @@ export const CodedFormationLock: React.FC<Props> = ({
   formationTitre,
   onAccesAccorde,
 }) => {
+  const navigate = useNavigate();
+  const { markUnlocked } = useUnlockedFormations();
+
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState("");
   const [prerequis, setPrerequis] = useState<PrerequiItem[]>([]);
   const [loadingPrereq, setLoadingPrereq] = useState(true);
 
-  // ✅ Charger les prérequis avec leur statut de certification
   useEffect(() => {
     api
       .get(`/formations/${formationId}/verifier-acces`)
       .then((res) => {
         if (res.data.a_acces) {
+          markUnlocked(formationId);
           onAccesAccorde();
         } else {
           setPrerequis(res.data.prerequis_formations ?? []);
@@ -57,17 +64,17 @@ export const CodedFormationLock: React.FC<Props> = ({
   const progression = nbTotal > 0 ? Math.round((nbObtenu / nbTotal) * 100) : 0;
 
   const handleVerifier = async () => {
-    if (code.length !== 8) {
-      setErreur("Le code doit contenir exactement 8 caractères.");
+    if (code.length < 6) {
+      setErreur("Le code doit contenir au moins 6 caractères.");
       return;
     }
     setLoading(true);
     setErreur("");
     try {
-      await api.post(`/formations/${formationId}/verifier-code`, {
-        code: code.toUpperCase(),
-      });
-      toast.success("Code correct ! Accès accordé.");
+      await api.post(`/formations/${formationId}/verifier-code`, { code });
+      // ✅ Fix 2 — Sauvegarder dans localStorage immédiatement
+      markUnlocked(formationId);
+      toast.success("✅ Code correct ! Accès accordé.");
       onAccesAccorde();
     } catch (err: any) {
       setErreur(
@@ -79,21 +86,31 @@ export const CodedFormationLock: React.FC<Props> = ({
     }
   };
 
-  if (loadingPrereq) {
+  if (loadingPrereq)
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 to-purple-950/30">
         <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
       </div>
     );
-  }
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="min-h-screen flex items-center justify-center p-6
+      className="min-h-screen flex flex-col items-center justify-center p-6
                  bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950/30"
     >
+      {/* ✅ Bouton Retour */}
+      <div className="w-full max-w-lg mb-4">
+        <button
+          onClick={() => navigate("/app/courses")}
+          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour aux formations
+        </button>
+      </div>
+
       <div
         className="max-w-lg w-full rounded-3xl shadow-2xl border border-purple-500/20
                       bg-slate-900/80 backdrop-blur-xl p-8 space-y-6"
@@ -121,10 +138,9 @@ export const CodedFormationLock: React.FC<Props> = ({
           </p>
         </div>
 
-        {/* ✅ Fix 3 — Section prérequis avec progression */}
+        {/* Prérequis */}
         {nbTotal > 0 && (
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4 space-y-3">
-            {/* En-tête section prérequis */}
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-purple-400" />
@@ -160,18 +176,20 @@ export const CodedFormationLock: React.FC<Props> = ({
               </p>
             </div>
 
-            {/* Liste des prérequis */}
-            <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+            {/* Liste prérequis cliquables */}
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {prerequis.map((p) => (
-                <motion.div
+                <motion.button
                   key={p.id}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors ${
-                    p.a_certificat
-                      ? "bg-green-500/10 border-green-500/20 text-green-300"
-                      : "bg-slate-700/40 border-slate-600/40 text-slate-400"
-                  }`}
+                  onClick={() => navigate(`/app/courses/${p.id}`)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border
+                              transition-all cursor-pointer group hover:scale-[1.01] text-left ${
+                                p.a_certificat
+                                  ? "bg-green-500/10 border-green-500/20 text-green-300 hover:bg-green-500/15"
+                                  : "bg-slate-700/40 border-slate-600/40 text-slate-300 hover:bg-slate-700/60 hover:border-purple-500/40"
+                              }`}
                 >
                   {p.a_certificat ? (
                     <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
@@ -179,20 +197,21 @@ export const CodedFormationLock: React.FC<Props> = ({
                     <Circle className="w-4 h-4 text-slate-500 shrink-0" />
                   )}
                   <span
-                    className={`flex-1 truncate ${p.a_certificat ? "line-through opacity-70" : ""}`}
+                    className={`flex-1 truncate font-medium ${p.a_certificat ? "line-through opacity-70" : ""}`}
                   >
                     {p.titre}
                   </span>
-                  {p.a_certificat && (
+                  {p.a_certificat ? (
                     <span className="text-xs text-green-500 font-medium shrink-0">
                       ✓
                     </span>
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-purple-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                   )}
-                </motion.div>
+                </motion.button>
               ))}
             </div>
 
-            {/* Message selon progression */}
             {tousObtenu ? (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -208,27 +227,25 @@ export const CodedFormationLock: React.FC<Props> = ({
               </motion.div>
             ) : (
               <p className="text-xs text-slate-500 text-center">
-                Complétez les formations ci-dessus pour recevoir le code
-                automatiquement.
+                Cliquez sur une formation pour la consulter et obtenir son
+                certificat.
               </p>
             )}
           </div>
         )}
 
-        {/* Si aucun prérequis — message générique */}
         {nbTotal === 0 && (
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-300 text-left">
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-300">
             <p className="font-semibold mb-1 flex items-center gap-2">
               <Key className="w-4 h-4" /> Comment obtenir le code ?
             </p>
             <p>
               Obtenez les certificats des formations prérequises. Le code vous
-              sera automatiquement communiqué par notification.
+              sera envoyé automatiquement.
             </p>
           </div>
         )}
 
-        {/* Séparateur */}
         <div className="border-t border-slate-700/50" />
 
         {/* Champ code */}
@@ -240,26 +257,21 @@ export const CodedFormationLock: React.FC<Props> = ({
             type="text"
             value={code}
             onChange={(e) => {
-              const val = e.target.value
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, "");
-              if (val.length <= 8) setCode(val);
+              setCode(e.target.value.slice(0, 20));
               setErreur("");
             }}
-            placeholder="X X X X X X X X"
-            maxLength={8}
-            className="w-full text-center text-2xl font-mono tracking-[0.5em] py-3 px-4
+            placeholder="Votre code d'accès..."
+            maxLength={20}
+            className="w-full text-center text-xl font-mono tracking-widest py-3 px-4
                        rounded-xl border-2 border-slate-700 bg-slate-800/80 text-white
-                       focus:outline-none focus:border-purple-500
-                       placeholder:tracking-[0.3em] placeholder:text-slate-600
-                       uppercase transition-colors"
+                       focus:outline-none focus:border-purple-500 placeholder:text-slate-600
+                       transition-colors"
           />
           <p className="text-xs text-center text-slate-500">
-            {code.length}/8 caractères
+            {code.length}/20 caractères
           </p>
         </div>
 
-        {/* Erreur */}
         {erreur && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
@@ -271,10 +283,9 @@ export const CodedFormationLock: React.FC<Props> = ({
           </motion.div>
         )}
 
-        {/* Bouton débloquer */}
         <Button
           onClick={handleVerifier}
-          disabled={loading || code.length !== 8}
+          disabled={loading || code.length < 6}
           className="w-full bg-gradient-to-r from-purple-600 to-indigo-600
                      hover:from-purple-700 hover:to-indigo-700 gap-2 h-12
                      disabled:opacity-40 disabled:cursor-not-allowed"

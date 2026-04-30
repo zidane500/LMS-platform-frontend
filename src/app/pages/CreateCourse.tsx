@@ -95,12 +95,28 @@ export const CreateCourse: React.FC = () => {
   }, []);
 
   // Générer un code aléatoire
+  // ✅ Fix 1 — Génération avec tous les types de caractères, unique
   const generateCode = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let result = "";
-    for (let i = 0; i < 8; i++)
-      result += chars[Math.floor(Math.random() * chars.length)];
-    setCode(result);
+    const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const lower = "abcdefghijklmnopqrstuvwxyz";
+    const digits = "0123456789";
+    const specials = "!@#$%&*+-=?";
+    const all = upper + lower + digits + specials;
+
+    const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
+
+    // Garantir au moins 1 de chaque type
+    const mandatory = [pick(upper), pick(lower), pick(digits), pick(specials)];
+    const rest = Array.from({ length: 8 }, () => pick(all));
+    const combined = [...mandatory, ...rest];
+
+    // Mélanger (Fisher-Yates)
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
+    }
+
+    setCode(combined.join(""));
   };
 
   if (currentUser?.role !== "instructor" && currentUser?.role !== "admin") {
@@ -116,6 +132,15 @@ export const CreateCourse: React.FC = () => {
     if (v) {
       setPrerequisites((p) => [...p, v]);
       setNewPrerequisite("");
+    }
+  };
+
+  const handleToggleCoded = () => {
+    const newVal = !isCoded;
+    setIsCoded(newVal);
+
+    if (newVal && !code) {
+      setTimeout(generateCode, 0);
     }
   };
 
@@ -139,8 +164,8 @@ export const CreateCourse: React.FC = () => {
       toast.error("La durée doit être au moins 1 heure");
       return;
     }
-    if (isCoded && code.length !== 8) {
-      toast.error("Le code doit contenir exactement 8 caractères");
+    if (isCoded && (code.length < 8 || code.length > 12)) {
+      toast.error("Le code doit contenir entre 8 et 12 caractères");
       return;
     }
 
@@ -160,7 +185,7 @@ export const CreateCourse: React.FC = () => {
       // ✅ Champs formation codée
       if (isCoded) {
         fd.append("is_coded", "1");
-        fd.append("code", code.toUpperCase());
+        fd.append("code", code);
         selectedPrerequisIds.forEach((id) =>
           fd.append("prerequis_formation_ids[]", id),
         );
@@ -467,7 +492,7 @@ export const CreateCourse: React.FC = () => {
                   {/* Toggle switch */}
                   <button
                     type="button"
-                    onClick={() => setIsCoded(!isCoded)}
+                    onClick={handleToggleCoded}
                     className={`relative inline-flex w-12 h-6 rounded-full transition-colors focus:outline-none ${
                       isCoded
                         ? "bg-purple-500"
@@ -487,19 +512,16 @@ export const CreateCourse: React.FC = () => {
                 <CardContent className="space-y-5 pt-0">
                   {/* Code d'accès */}
                   <div className="space-y-2">
-                    <Label>Code d'accès (8 caractères) *</Label>
+                    <Label>Code d'accès (auto-généré) *</Label>
                     <div className="flex gap-2">
+                      {/* ✅ readOnly — impossible de taper manuellement */}
                       <Input
                         value={code}
-                        onChange={(e) => {
-                          const val = e.target.value
-                            .toUpperCase()
-                            .replace(/[^A-Z0-9]/g, "");
-                          if (val.length <= 8) setCode(val);
-                        }}
-                        placeholder="Ex: ABCD1234"
-                        maxLength={8}
-                        className="font-mono tracking-widest text-center text-lg uppercase"
+                        readOnly
+                        placeholder="Cliquez sur 'Générer'..."
+                        maxLength={20}
+                        className="font-mono tracking-widest text-center text-lg bg-slate-100 dark:bg-slate-800/80
+                 cursor-not-allowed select-all"
                       />
                       <Button
                         type="button"
@@ -510,16 +532,7 @@ export const CreateCourse: React.FC = () => {
                         <RefreshCw className="w-4 h-4" /> Générer
                       </Button>
                     </div>
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>Uniquement lettres majuscules et chiffres</span>
-                      <span
-                        className={
-                          code.length === 8 ? "text-green-500 font-medium" : ""
-                        }
-                      >
-                        {code.length}/8
-                      </span>
-                    </div>
+                    
                   </div>
 
                   {/* Formations prérequises */}

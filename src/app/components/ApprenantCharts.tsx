@@ -28,14 +28,13 @@ ChartJS.register(
 );
 
 interface Stats {
-  total_formations: number;
+  total_formations: number; // ← maintenant = inscriptions user
   formations_completees: number;
   formations_en_cours: number;
   labels_mois: string[];
   data_mois: number[];
 }
 
-// ✅ Hook pour détecter le mode dark (surveille la classe sur <html>)
 function useDarkMode() {
   const [isDark, setIsDark] = useState(
     document.documentElement.classList.contains("dark"),
@@ -66,29 +65,28 @@ export const ApprenantCharts: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
+  if (loading)
     return (
       <div className="flex items-center justify-center h-48">
         <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
       </div>
     );
-  }
   if (!stats) return null;
 
-  // ── Couleurs adaptées au thème ─────────────────────────
   const textColor = isDark ? "#94a3b8" : "#475569";
   const gridColor = isDark ? "rgba(148,163,184,0.1)" : "rgba(100,116,139,0.12)";
   const titleColor = isDark ? "#cbd5e1" : "#1e293b";
 
-  // ── Donut ──────────────────────────────────────────────
+  // ✅ POINT 1 — Inscriptions de l'utilisateur (pas total plateforme)
+  const totalInscrits = stats.total_formations;
+  const completees = stats.formations_completees;
+  const nonCompletees = Math.max(0, totalInscrits - completees);
+
   const donutData = {
-    labels: ["Complétées", "Non complétées"],
+    labels: ["Complétées", "En cours / Non commencées"],
     datasets: [
       {
-        data: [
-          stats.formations_completees,
-          Math.max(0, stats.total_formations - stats.formations_completees),
-        ],
+        data: [completees, nonCompletees],
         backgroundColor: [
           "rgba(99,102,241,0.85)",
           isDark ? "rgba(148,163,184,0.2)" : "rgba(203,213,225,0.5)",
@@ -112,7 +110,8 @@ export const ApprenantCharts: React.FC = () => {
       },
       title: {
         display: true,
-        text: "Formations complétées / Total plateforme",
+        // ✅ Titre mis à jour
+        text: "Mes formations complétées / Mes inscriptions",
         color: titleColor,
         font: { size: 13 },
         padding: { bottom: 16 },
@@ -120,7 +119,6 @@ export const ApprenantCharts: React.FC = () => {
     },
   };
 
-  // ── Ligne mensuelle ────────────────────────────────────
   const lineData = {
     labels: stats.labels_mois,
     datasets: [
@@ -166,7 +164,6 @@ export const ApprenantCharts: React.FC = () => {
     },
   };
 
-  // ── Conteneur thème-aware ──────────────────────────────
   const cardClass =
     "rounded-2xl p-6 border " +
     (isDark
@@ -175,32 +172,27 @@ export const ApprenantCharts: React.FC = () => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Donut */}
       <div className={cardClass}>
         <div className="max-w-xs mx-auto">
           <Doughnut data={donutData} options={donutOptions} />
         </div>
         <div className="flex justify-center gap-8 mt-4 text-sm">
           <div className="text-center">
-            <p className="text-2xl font-bold text-indigo-500">
-              {stats.formations_completees}
-            </p>
+            <p className="text-2xl font-bold text-indigo-500">{completees}</p>
             <p className="text-gray-500 dark:text-slate-400 text-xs mt-0.5">
               Complétées
             </p>
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-gray-400 dark:text-slate-400">
-              {stats.total_formations}
+              {totalInscrits}
             </p>
             <p className="text-gray-500 dark:text-slate-400 text-xs mt-0.5">
-              Total plateforme
+              Mes inscriptions
             </p>
           </div>
         </div>
       </div>
-
-      {/* Ligne mensuelle */}
       <div className={cardClass}>
         <Line data={lineData} options={lineOptions} />
       </div>

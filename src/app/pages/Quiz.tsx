@@ -35,6 +35,15 @@ import type {
 } from "../services/quizService";
 import { toastQueue } from "../utils/toastQueue";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+
 export const Quiz: React.FC = () => {
   const navigate = useNavigate();
   const { courseId, moduleId, quizId } = useParams<{
@@ -64,6 +73,8 @@ export const Quiz: React.FC = () => {
   // Résultats
   const [resultat, setResultat] = useState<ResultatQuiz | null>(null);
   const [showCorrections, setShowCorrections] = useState(false);
+
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   // Charger le quiz
   useEffect(() => {
@@ -124,13 +135,13 @@ export const Quiz: React.FC = () => {
   if (!quiz.peut_repasser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 to-purple-950/30 flex items-center justify-center p-6">
-        <Card className="max-w-md w-full bg-slate-900 border-slate-700">
+        <Card className="max-w-md w-full bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700">
           <CardContent className="p-8 text-center space-y-4">
             <AlertCircle className="w-16 h-16 text-orange-400 mx-auto" />
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               Limite de tentatives atteinte
             </h2>
-            <p className="text-slate-400">
+            <p className="text-gray-600 dark:text-slate-400">
               Vous avez utilisé toutes vos tentatives ({quiz.nb_tentatives_max}/
               {quiz.nb_tentatives_max}).
             </p>
@@ -246,12 +257,12 @@ export const Quiz: React.FC = () => {
         ? "text-green-400"
         : "text-red-400";
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950/20 p-6">
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 p-6">
         <div className="max-w-3xl mx-auto space-y-6">
           <Button
             variant="ghost"
             onClick={() => navigate(-1)}
-            className="text-slate-400 hover:text-white gap-2"
+            className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white gap-2"
           >
             <ArrowLeft className="w-4 h-4" /> Retour
           </Button>
@@ -261,7 +272,7 @@ export const Quiz: React.FC = () => {
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
           >
-            <Card className="bg-gradient-to-br from-slate-900 to-purple-900/20 border-purple-500/20">
+            <Card className="bg-gradient-to-br from-white to-purple-50 border-gray-200 dark:from-slate-900 dark:to-purple-900/20 dark:border-purple-500/20 shadow-xl">
               <CardContent className="p-8 text-center space-y-4">
                 <div className={`text-7xl font-bold ${pctColor}`}>
                   {resultat.pourcentage}%
@@ -299,32 +310,36 @@ export const Quiz: React.FC = () => {
                     </>
                   )}
                 </div>
-                <p className="text-slate-400">
+                <p className="text-gray-700 dark:text-slate-400">
                   Score : {resultat.score}/{resultat.score_max} points
                 </p>
                 <div className="grid grid-cols-3 gap-4 pt-4">
-                  <div className="bg-white/5 rounded-xl p-4">
-                    <p className="text-xs text-slate-500 mb-1">
+                  <div className="bg-gray-100 dark:bg-white/5 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 dark:text-slate-500 mb-1">
                       Bonnes réponses
                     </p>
-                    <p className="text-2xl font-bold text-green-400">
+                    <p className="text-2xl font-bold text-green-500">
                       {resultat.corrections.filter((c) => c.est_correct).length}
                     </p>
                   </div>
-                  <div className="bg-white/5 rounded-xl p-4">
-                    <p className="text-xs text-slate-500 mb-1">
+
+                  <div className="bg-gray-100 dark:bg-white/5 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 dark:text-slate-500 mb-1">
                       Mauvaises réponses
                     </p>
-                    <p className="text-2xl font-bold text-red-400">
+                    <p className="text-2xl font-bold text-red-500">
                       {
                         resultat.corrections.filter((c) => !c.est_correct)
                           .length
                       }
                     </p>
                   </div>
-                  <div className="bg-white/5 rounded-xl p-4">
-                    <p className="text-xs text-slate-500 mb-1">Tentative</p>
-                    <p className="text-2xl font-bold text-blue-400">
+
+                  <div className="bg-gray-100 dark:bg-white/5 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 dark:text-slate-500 mb-1">
+                      Tentative
+                    </p>
+                    <p className="text-2xl font-bold text-blue-500">
                       {resultat.nb_tentatives}/{quiz.nb_tentatives_max}
                     </p>
                   </div>
@@ -492,14 +507,14 @@ export const Quiz: React.FC = () => {
                           )}
 
                           {c.feedback_ia && (
-                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-3">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 rounded-xl p-4 space-y-3">
                               <div className="flex items-center gap-2">
-                                <span className="text-blue-400 text-xs font-semibold uppercase tracking-wide">
+                                <span className="text-blue-700 dark:text-blue-300 text-xs font-semibold uppercase tracking-wide">
                                   Correction par IA
                                 </span>
                               </div>
 
-                              <p className="text-slate-300 text-sm">
+                              <p className="text-gray-700 dark:text-slate-300 text-sm">
                                 {c.feedback_ia}
                               </p>
 
@@ -554,19 +569,23 @@ export const Quiz: React.FC = () => {
   // ── Interface quiz ────────────────────────────────────────
   const q = questions[currentQ];
   const repCurrent = reponses[q.id!]; // choix_ids[] ou texte
-
+  // Compter le nombre de questions répondues
+  const getAnsweredCount = (): number => {
+    return Object.entries(reponses).filter(([, v]) => {
+      if (v.choix_ids && v.choix_ids.length > 0) return true;
+      if (v.texte && v.texte.trim() !== "") return true;
+      return false;
+    }).length;
+  };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950/20">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 transition-colors">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
-            onClick={() => {
-              if (confirm("Quitter le quiz ? Vos réponses seront perdues."))
-                navigate(-1);
-            }}
-            className="text-slate-400 hover:text-white gap-2"
+            onClick={() => setShowExitConfirm(true)}
+            className="text-gray-600 dark:text-slate-400 hover:text-white gap-2"
           >
             <ArrowLeft className="w-4 h-4" /> Quitter
           </Button>
@@ -581,7 +600,7 @@ export const Quiz: React.FC = () => {
                 </span>
               </div>
             )}
-            <span className="text-slate-400 text-sm">
+            <span className="text-gray-600 dark:text-slate-400 text-sm">
               {currentQ + 1} / {totalQuestions}
             </span>
           </div>
@@ -600,10 +619,10 @@ export const Quiz: React.FC = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
-            <Card className="bg-slate-900/80 border-white/10">
+            <Card className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 shadow-xl">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
-                  <CardTitle className="text-white text-lg leading-relaxed">
+                  <CardTitle className="text-gray-900 dark:text-white text-lg leading-relaxed">
                     {q.texte}
                   </CardTitle>
                   <Badge className="shrink-0 bg-purple-500/20 text-purple-300 border-purple-500/30">
@@ -629,8 +648,8 @@ export const Quiz: React.FC = () => {
                           }
                           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
                             selected
-                              ? "border-purple-500 bg-purple-500/10 text-white"
-                              : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10"
+                              ? "border-purple-500 bg-purple-500/10 text-gray-900 dark:text-white"
+                              : "border-gray-300 dark:border-white/10 bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:border-purple-400"
                           }`}
                         >
                           {/* ✅ Carré = checkbox (multi) */}
@@ -677,8 +696,8 @@ export const Quiz: React.FC = () => {
                         }
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
                           selected
-                            ? "border-purple-500 bg-purple-500/10 text-white"
-                            : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10"
+                            ? "border-purple-500 bg-purple-500/10 text-gray-900 dark:text-white"
+                            : "border-gray-200 dark:border-white/10:bg-slate-900 text-gray-700 dark:text-slate-300 hover:border-gray-300 dark:hover:border-white/20 hover:bg-gray-100 dark:hover:bg-white/10"
                         }`}
                       >
                         {/* ✅ Rond = radio (unique) */}
@@ -707,7 +726,7 @@ export const Quiz: React.FC = () => {
                     }
                     placeholder="Saisissez votre réponse..."
                     rows={4}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-purple-500"
+                    className="bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white placeholder:text-slate-500 focus:border-purple-500"
                   />
                 )}
               </CardContent>
@@ -719,7 +738,7 @@ export const Quiz: React.FC = () => {
         <div className="flex items-center justify-between">
           <Button
             variant="outline"
-            className="gap-2 border-white/10 text-slate-300 hover:bg-white/5"
+            className="gap-2 border-gray-300 dark:border-white/10 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white"
             onClick={() => setCurrentQ((q) => Math.max(0, q - 1))}
             disabled={currentQ === 0}
           >
@@ -737,8 +756,8 @@ export const Quiz: React.FC = () => {
                     ? "bg-purple-500 scale-125"
                     : (reponses[qq.id!]?.choix_ids?.length ?? 0) > 0 ||
                         reponses[qq.id!]?.texte
-                      ? "bg-purple-400/60"
-                      : "bg-white/20"
+                      ? "bg-purple-400 dark:bg-purple-400/60"
+                      : "bg-gray-300 dark:bg-white/20"
                 }`}
               />
             ))}
@@ -782,6 +801,43 @@ export const Quiz: React.FC = () => {
           / {totalQuestions} questions répondues
         </div>
       </div>
+      {/* Modal de confirmation de sortie */}
+      <Dialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        <DialogContent className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              Quitter le quiz ?
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-slate-400">
+              {getAnsweredCount() > 0 ? (
+                <>
+                  Vous avez répondu à {getAnsweredCount()} question(s). Vos
+                  réponses seront perdues.
+                </>
+              ) : (
+                "Vous n'avez encore répondu à aucune question."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowExitConfirm(false)}
+              className="border-gray-300 dark:border-slate-700"
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => navigate(-1)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Quitter quand même
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

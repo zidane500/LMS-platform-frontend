@@ -16,8 +16,20 @@ import {
 } from "chart.js";
 import { Doughnut, Bar } from "react-chartjs-2";
 import api from "../services/api";
-import { Loader2, AlertTriangle, Brain, Award, BarChart2 } from "lucide-react";
+import {
+  Loader2,
+  AlertTriangle,
+  Brain,
+  Award,
+  BarChart2,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  Filter,
+} from "lucide-react";
 import { useDarkMode } from "../hooks/useDarkMode";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
 
 ChartJS.register(
   ArcElement,
@@ -68,6 +80,249 @@ interface CategorieProgression {
   nb_apprenants: number;
 }
 
+// ── Composant pour le graphique des formations critiques (Top N) ──
+const CriticalFormationsChart: React.FC<{ data: FormationAttention[] }> = ({
+  data,
+}) => {
+  const isDark = useDarkMode();
+  const textColor = isDark ? "#94a3b8" : "#475569";
+  const gridColor = isDark ? "rgba(148,163,184,0.1)" : "rgba(100,116,139,0.1)";
+
+  const topFormations = [...data]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
+  const chartData = {
+    labels: topFormations.map((f) =>
+      f.titre.length > 20 ? f.titre.slice(0, 20) + "…" : f.titre,
+    ),
+    datasets: [
+      {
+        label: "Score d'alerte",
+        data: topFormations.map((f) => f.score),
+        backgroundColor: "rgba(239,68,68,0.8)",
+        borderRadius: 4,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx: any) => {
+            const formation = topFormations[ctx.dataIndex];
+            return [
+              `Score: ${formation.score}`,
+              `Progression: ${formation.prog_moyenne}%`,
+              `Échecs: ${formation.taux_echec}%`,
+              `Abandons: ${formation.taux_abandon}%`,
+            ];
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: textColor, font: { size: 10 }, rotation: 45 },
+        grid: { display: false },
+      },
+      y: {
+        beginAtZero: true,
+        max: 100,
+        ticks: { color: textColor, stepSize: 20 },
+        grid: { color: gridColor },
+        title: {
+          display: true,
+          text: "Score d'alerte",
+          color: textColor,
+        },
+      },
+    },
+  };
+
+  return <Bar data={chartData} options={options} />;
+};
+
+// ── Composant tableau paginé pour toutes les formations ──
+const FormationsTable: React.FC<{ data: FormationAttention[] }> = ({
+  data,
+}) => {
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<
+    "score" | "prog_moyenne" | "taux_echec" | "taux_abandon"
+  >("score");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const itemsPerPage = 10;
+
+  const sortedData = [...data].sort((a, b) => {
+    const aVal = a[sortBy];
+    const bVal = b[sortBy];
+    return sortOrder === "desc" ? bVal - aVal : aVal - bVal;
+  });
+
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+  const paginatedData = sortedData.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage,
+  );
+
+  const SortButton: React.FC<{ field: typeof sortBy; label: string }> = ({
+    field,
+    label,
+  }) => (
+    <button
+      onClick={() => {
+        if (sortBy === field) {
+          setSortOrder(sortOrder === "desc" ? "asc" : "desc");
+        } else {
+          setSortBy(field);
+          setSortOrder("desc");
+        }
+        setPage(1);
+      }}
+      className="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
+    >
+      {label}
+      <ArrowUpDown className="w-3 h-3" />
+    </button>
+  );
+
+  const getNiveauBadge = (niveau: string) => {
+    switch (niveau) {
+      case "critique":
+        return (
+          <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            Critique
+          </span>
+        );
+      case "attention":
+        return (
+          <span className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+            Attention
+          </span>
+        );
+      default:
+        return (
+          <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+            Faible
+          </span>
+        );
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-12 gap-3 px-3 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg text-xs font-semibold">
+        <div className="col-span-5">Formation</div>
+        <div className="col-span-2 text-center">
+          <SortButton field="prog_moyenne" label="Progression" />
+        </div>
+        <div className="col-span-2 text-center">
+          <SortButton field="taux_echec" label="Échecs" />
+        </div>
+        <div className="col-span-2 text-center">
+          <SortButton field="taux_abandon" label="Abandons" />
+        </div>
+        <div className="col-span-1 text-center">
+          <SortButton field="score" label="Score" />
+        </div>
+      </div>
+
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        {paginatedData.map((f, i) => (
+          <div
+            key={i}
+            className="grid grid-cols-12 gap-3 px-3 py-2 rounded-lg border border-gray-100 dark:border-slate-800 text-sm"
+          >
+            <div className="col-span-5 flex items-center gap-2">
+              {getNiveauBadge(f.niveau)}
+              <span className="font-medium truncate" title={f.titre}>
+                {f.titre.length > 30 ? f.titre.slice(0, 30) + "…" : f.titre}
+              </span>
+            </div>
+            <div className="col-span-2 text-center">
+              <div className="flex items-center gap-1">
+                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 rounded-full"
+                    style={{ width: `${f.prog_moyenne}%` }}
+                  />
+                </div>
+                <span className="text-xs w-8">{f.prog_moyenne}%</span>
+              </div>
+            </div>
+            <div className="col-span-2 text-center">
+              <div className="flex items-center gap-1">
+                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-red-500 rounded-full"
+                    style={{ width: `${f.taux_echec}%` }}
+                  />
+                </div>
+                <span className="text-xs w-8 text-red-500">
+                  {f.taux_echec}%
+                </span>
+              </div>
+            </div>
+            <div className="col-span-2 text-center">
+              <div className="flex items-center gap-1">
+                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-orange-500 rounded-full"
+                    style={{ width: `${f.taux_abandon}%` }}
+                  />
+                </div>
+                <span className="text-xs w-8 text-orange-500">
+                  {f.taux_abandon}%
+                </span>
+              </div>
+            </div>
+            <div className="col-span-1 text-center font-bold">
+              <span
+                className={`${f.score >= 70 ? "text-red-500" : f.score >= 50 ? "text-orange-500" : "text-yellow-500"}`}
+              >
+                {f.score}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-3 border-t dark:border-slate-800">
+          <span className="text-xs text-gray-500">
+            {sortedData.length} formation(s) · Page {page} / {totalPages}
+          </span>
+          <div className="flex gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Composant principal ────────────────────────────────────────
 export const AdminChartsExtra: React.FC = () => {
   const isDark = useDarkMode();
@@ -81,6 +336,16 @@ export const AdminChartsExtra: React.FC = () => {
   const [loadingIa, setLoadingIa] = useState(true);
   const [loadingCertif, setLoadingCertif] = useState(true);
   const [loadingCat, setLoadingCat] = useState(true);
+
+  // ✅ Filtre pour les formations attention
+  const [filter, setFilter] = useState<
+    "all" | "critique" | "attention" | "faible"
+  >("all");
+
+  // Filtrer les données
+  const filteredAttention = attention.filter((f) =>
+    filter === "all" ? true : f.niveau === filter,
+  );
 
   // Couleurs
   const textColor = isDark ? "#94a3b8" : "#475569";
@@ -126,9 +391,9 @@ export const AdminChartsExtra: React.FC = () => {
           {
             data: certifStats.data,
             backgroundColor: [
-              "rgba(16,185,129,0.85)", // Certifiés — vert
-              "rgba(99,102,241,0.85)", // En cours  — indigo
-              "rgba(148,163,184,0.5)", // Non éligibles — gris
+              "rgba(16,185,129,0.85)",
+              "rgba(99,102,241,0.85)",
+              "rgba(148,163,184,0.5)",
             ],
             borderColor: [
               "rgb(16,185,129)",
@@ -287,21 +552,10 @@ export const AdminChartsExtra: React.FC = () => {
     },
   };
 
-  const niveauColor = (niveau: string) =>
-    ({
-      critique:
-        "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800",
-      attention:
-        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800",
-      faible:
-        "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
-    })[niveau] ?? "";
-
   return (
     <div className="space-y-6">
       {/* ── Ligne 1 : Donut certifications + Bar catégories ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Donut certifications */}
         <div className={cardClass}>
           {loadingCertif ? (
             <div className="flex items-center justify-center h-56">
@@ -346,7 +600,6 @@ export const AdminChartsExtra: React.FC = () => {
           )}
         </div>
 
-        {/* Bar progression par catégorie */}
         <div className={cardClass}>
           {loadingCat ? (
             <div className="flex items-center justify-center h-56">
@@ -367,62 +620,97 @@ export const AdminChartsExtra: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Ligne 2 : Formations attention + IA stats ── */}
+      {/* ── Ligne 2 : Formations attention (version optimisée) + IA stats ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Tableau formations nécessitant attention */}
-        <div className={cardClass + " space-y-3"}>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-orange-500" />
-            <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">
-              Formations nécessitant une attention
-            </h3>
+        {/* Section Formations nécessitant attention - Version optimisée */}
+        <div className={cardClass + " space-y-4"}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-500" />
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+                Formations nécessitant une attention
+              </h3>
+              {attention.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {filteredAttention.length}/{attention.length}
+                </Badge>
+              )}
+            </div>
+
+            {/* ✅ Filtre par niveau */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setFilter("all")}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                  filter === "all"
+                    ? "bg-gray-200 dark:bg-slate-700 text-gray-900 dark:text-white"
+                    : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setFilter("critique")}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                  filter === "critique"
+                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                    : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Critique
+              </button>
+              <button
+                onClick={() => setFilter("attention")}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                  filter === "attention"
+                    ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400"
+                    : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Attention
+              </button>
+              <button
+                onClick={() => setFilter("faible")}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                  filter === "faible"
+                    ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
+                    : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Faible
+              </button>
+            </div>
           </div>
 
           {loadingAttention ? (
-            <div className="flex items-center justify-center h-32">
+            <div className="flex items-center justify-center h-64">
               <Loader2 className="w-6 h-6 text-orange-400 animate-spin" />
             </div>
-          ) : attention.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 gap-2">
+          ) : filteredAttention.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 gap-2">
               <p className="text-sm text-gray-400 dark:text-slate-500">
-                ✅ Toutes les formations se portent bien
+                {filter !== "all"
+                  ? `Aucune formation avec niveau "${filter}"`
+                  : "✅ Toutes les formations se portent bien"}
               </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {attention.map((f, i) => (
-                <div
-                  key={i}
-                  className={`flex flex-col gap-1 p-3 rounded-xl border text-sm ${niveauColor(f.niveau)}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold truncate max-w-[70%]">
-                      {f.titre}
-                    </span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                        f.niveau === "critique"
-                          ? "bg-red-500 text-white"
-                          : f.niveau === "attention"
-                            ? "bg-orange-500 text-white"
-                            : "bg-yellow-500 text-white"
-                      }`}
-                    >
-                      {f.niveau}
-                    </span>
+            <div className="space-y-6">
+              {/* Graphique des 10 plus critiques */}
+              {filteredAttention.length > 1 && (
+                <div className="bg-gray-50 dark:bg-slate-800/30 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                    📊 Top {Math.min(10, filteredAttention.length)} formations
+                    les plus critiques
+                  </p>
+                  <div style={{ height: "280px" }}>
+                    <CriticalFormationsChart data={filteredAttention} />
                   </div>
-                  <div className="flex gap-3 text-xs opacity-80 flex-wrap">
-                    <span>📊 {f.prog_moyenne}% moy.</span>
-                    <span>❌ {f.taux_echec}% échecs</span>
-                    <span>🚪 {f.taux_abandon}% abandons</span>
-                  </div>
-                  {f.alertes.length > 0 && (
-                    <p className="text-xs opacity-70 italic">
-                      {f.alertes.join(" · ")}
-                    </p>
-                  )}
                 </div>
-              ))}
+              )}
+
+              {/* Tableau paginé pour toutes les formations */}
+              <FormationsTable data={filteredAttention} />
             </div>
           )}
         </div>
@@ -436,7 +724,6 @@ export const AdminChartsExtra: React.FC = () => {
             </h3>
           </div>
 
-          {/* Stats globales IA */}
           {iaStats && (
             <div className="grid grid-cols-3 gap-2">
               {[

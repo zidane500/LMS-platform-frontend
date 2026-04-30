@@ -28,6 +28,7 @@ import { InstructorProgress } from "./pages/InstructorProgress";
 import { BadgesPage } from "./pages/BadgesPage";
 import { VerifyCertificate } from "./pages/VerifyCertificate";
 import { AdminUserProfile } from "./pages/AdminUserProfile";
+import { InboxPage } from "./pages/InboxPage";
 
 export const router = createBrowserRouter([
   {
@@ -70,6 +71,10 @@ export const router = createBrowserRouter([
       {
         path: "courses/:id",
         Component: CourseDetail,
+      },
+      {
+        path: "inbox",
+        Component: InboxPage,
       },
       {
         path: "courses/create",

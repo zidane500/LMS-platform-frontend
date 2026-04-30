@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import type { Course } from "../types";
 import axios from "axios";
 import type { Instructor } from "../services/formationService";
+import { useUnlockedFormations } from "../hooks/useUnlockedFormations";
 
 export const Courses: React.FC = () => {
   const { currentUser } = useAuth();
@@ -56,6 +57,11 @@ export const Courses: React.FC = () => {
 
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [certificatFormationIds, setCertificatFormationIds] = useState<
+    string[]
+  >([]);
+
+  const { checkUnlocked } = useUnlockedFormations();
 
   // ── Chargement des formations ─────────────────────────────
   const loadCourses = useCallback(async () => {
@@ -85,7 +91,7 @@ export const Courses: React.FC = () => {
     showMine,
     selectedStatut,
     selectedInstructor,
-    filtreCode, // ✅ dépendance ajoutée
+    filtreCode,
   ]);
 
   useEffect(() => {
@@ -160,7 +166,7 @@ export const Courses: React.FC = () => {
         </div>
 
         {/* ── Filtres ── */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 items-center">
           {/* Recherche */}
           <div className="relative flex-1 min-w-60">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -252,7 +258,7 @@ export const Courses: React.FC = () => {
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
               filtreCode
                 ? "bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/25"
-                : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-purple-400 dark:hover:border-purple-600"
+                : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-purple-400"
             }`}
           >
             <Lock className="w-4 h-4" />
@@ -295,6 +301,14 @@ export const Courses: React.FC = () => {
                 >
                   <CourseCard
                     course={course}
+                    isUnlocked={
+                      !course.is_coded ||
+                      (course as any).aAcces === true ||
+                      checkUnlocked(String(course.id)) // ← Fix 2 : lecture du localStorage
+                    }
+                    hasCertificate={certificatFormationIds.includes(
+                      String(course.id),
+                    )}
                     isEnrolled={(course as any).isEnrolled ?? false}
                     onView={() => navigate(`/app/courses/${course.id}`)}
                     onEdit={

@@ -148,8 +148,8 @@ export const UserManagement: React.FC = () => {
     role === "admin"
       ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
       : role === "instructor"
-        ? "bg-indigo-100 text-indigo-700"
-        : "bg-purple-100 text-purple-700";
+        ? "bg-yellow-200 text-yellow-900 dark:bg-yellow-900/30 dark:text-yellow-300"
+        : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
 
   const roleLabel = (role: string) =>
     role === "admin"
@@ -303,6 +303,7 @@ export const UserManagement: React.FC = () => {
                               </span>
 
                               <span className="hidden sm:inline">
+                                {" "}
                                 {user.peut_coder ? "Codé ON" : "Codé OFF"}
                               </span>
                             </button>

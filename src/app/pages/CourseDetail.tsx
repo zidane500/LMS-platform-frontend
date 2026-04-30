@@ -1,4 +1,3 @@
-// src/app/pages/CourseDetail.tsx — US 3.2 complet : design moderne
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { getProgression } from "../services/progressionService";
@@ -11,7 +10,6 @@ import {
   Clock,
   Users,
   ChevronDown,
-  ChevronRight,
   Play,
   FileText,
   Music,
@@ -20,34 +18,27 @@ import {
   Loader2,
   CheckCircle,
   Lock,
-  BarChart3,
   Edit,
   Award,
+  Star,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getFormation, enrollFormation } from "../services/formationService";
-import { getContenus, marquerConsulte } from "../services/contenuService";
+import { getContenus } from "../services/contenuService";
 import { ContentViewer } from "../components/ContentViewer";
 import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
-import { Progress } from "../components/ui/progress";
 import { toast } from "sonner";
-
 import axios from "axios";
 import type { Course, Content, ContentType } from "../types";
-
 import { CodedFormationLock } from "../components/CodedFormationLock";
 import { verifierAccesFormation } from "../services/formationService";
-
 import { useTimeTracking } from "../hooks/useTimeTracking";
+import { CourseChat } from "../components/CourseChat";
+import { FeedbackModal } from "../components/FeedbackModal";
+import { FormationFeedbacks } from "../components/FormationFeedbacks";
+import { useUnlockedFormations } from "../hooks/useUnlockedFormations";
+import api from "../services/api";
 
-// ── Icône contenu ─────────────────────────────────────────
 const ContentIcon: React.FC<{ type: ContentType; className?: string }> = ({
   type,
   className = "w-4 h-4",
@@ -70,9 +61,10 @@ export const CourseDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id: courseId } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
+  const { markUnlocked } = useUnlockedFormations();
 
   const [course, setCourse] = useState<
-    (Course & { isEnrolled?: boolean; statut?: string }) | null
+    (Course & { isEnrolled?: boolean }) | null
   >(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
@@ -80,7 +72,7 @@ export const CourseDetail: React.FC = () => {
   const [isCoded, setIsCoded] = useState(false);
   const [aAcces, setAAcces] = useState(true);
   const [checkingAcces, setCheckingAcces] = useState(true);
-  // Contenus
+
   const [moduleContenus, setModuleContenus] = useState<
     Record<string, (Content & { progression?: any })[]>
   >({});
@@ -89,42 +81,53 @@ export const CourseDetail: React.FC = () => {
   >({});
   const [progressionData, setProgressionData] =
     useState<ProgressionFormation | null>(null);
+
+  // ✅ Correction : syntaxe correcte pour useState avec Record
   const [moduleQuizStatus, setModuleQuizStatus] = useState<
     Record<string, { quizId: string | null; termine: boolean }>
   >({});
+
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<{
     moduleId: string;
     content: Content & { progression?: any };
   } | null>(null);
-  // ✅ Accès pour le tracking du temps
 
-  // ── Rôles de base ──────────────────────────────────────────
+  // ── Feedback ──────────────────────────────────────────────
+  // ✅ Correction : séparer les states
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [pendingQuizNav, setPendingQuizNav] = useState<string | null>(null);
+  const [monFeedback, setMonFeedback] = useState<any>(null);
+  const [feedbackRefresh, setFeedbackRefresh] = useState(0);
+
+  // ── Rôles ─────────────────────────────────────────────────
   const isInstructorOrAdmin =
     currentUser?.role === "instructor" || currentUser?.role === "admin";
-
   const isOwnerInstructor =
     isInstructorOrAdmin &&
     String((course as any)?.instructorId) === String(currentUser?.id);
-
-  // ── Accès pour le tracking du temps ────────────────────────
-  const isInstructorOrAdminForTracking =
-    currentUser?.role === "instructor" || currentUser?.role === "admin";
-
-  const isOwnerInstructorForTracking =
-    isInstructorOrAdminForTracking &&
-    String((course as any)?.instructorId) === String(currentUser?.id);
-
   const canAccessForTracking =
-    isOwnerInstructorForTracking || currentUser?.role === "admin" || isEnrolled;
+    isOwnerInstructor || currentUser?.role === "admin" || isEnrolled;
 
-  // ✅ Démarrer le suivi du temps uniquement si l'utilisateur a accès
   useTimeTracking(courseId ?? "", Boolean(courseId && canAccessForTracking));
+
+  // ── Charger mon feedback ──────────────────────────────────
+  useEffect(() => {
+    if (!courseId || !currentUser) return;
+    api
+      .get(`/formations/${courseId}/feedbacks/mon-feedback`)
+      .then((res) => {
+        console.log("📥 Feedback chargé:", res.data);
+        setMonFeedback(res.data);
+      })
+      .catch(() => {});
+  }, [courseId, currentUser, feedbackRefresh]);
+
+  // ── Progression ───────────────────────────────────────────
   const chargerProgression = async (
     formationId: string,
   ): Promise<ProgressionFormation | null> => {
     if (!currentUser || currentUser.role !== "learner") return null;
-
     try {
       const data = await getProgression(formationId);
       setProgressionData(data);
@@ -134,7 +137,7 @@ export const CourseDetail: React.FC = () => {
       return null;
     }
   };
-  // ✅ NOUVEAU — termine = toutes les tentatives épuisées (pas juste une tentative)
+
   const chargerStatutQuiz = async (
     formationId: string,
     moduleId: string,
@@ -142,33 +145,23 @@ export const CourseDetail: React.FC = () => {
   ) => {
     try {
       const quiz = await getQuiz(formationId, moduleId);
-
-      // ✅ "Quiz terminé" uniquement si nbTentatives >= nb_tentatives_max
       const nbTentatives = (progression?.tentatives_quiz ?? []).filter(
         (t) => String(t.quiz_id) === String(quiz.id),
       ).length;
-
       const toutesEpuisees = nbTentatives >= quiz.nb_tentatives_max;
-
       setModuleQuizStatus((prev) => ({
         ...prev,
-        [moduleId]: {
-          quizId: quiz.id,
-          termine: toutesEpuisees,
-        },
+        [moduleId]: { quizId: quiz.id, termine: toutesEpuisees },
       }));
     } catch {
       setModuleQuizStatus((prev) => ({
         ...prev,
-        [moduleId]: {
-          quizId: null,
-          termine: false,
-        },
+        [moduleId]: { quizId: null, termine: false },
       }));
     }
   };
 
-  // ── Chargement ───────────────────────────────────────────
+  // ── Chargement ────────────────────────────────────────────
   useEffect(() => {
     if (!courseId) return;
     setPageLoading(true);
@@ -186,20 +179,16 @@ export const CourseDetail: React.FC = () => {
           enrolled
         ) {
           const progression = await chargerProgression(courseId);
-
-          const modulesFormation = c.modules ?? [];
-          const promises = modulesFormation.map(async (module) => {
-            try {
-              const data = await getContenus(courseId, module.id);
-              setModuleContenus((prev) => ({ ...prev, [module.id]: data }));
-            } catch {
-              // silencieux
-            }
-
-            await chargerStatutQuiz(courseId, module.id, progression);
-          });
-
-          await Promise.all(promises);
+          const mods = c.modules ?? [];
+          await Promise.all(
+            mods.map(async (module) => {
+              try {
+                const data = await getContenus(courseId, module.id);
+                setModuleContenus((prev) => ({ ...prev, [module.id]: data }));
+              } catch {}
+              await chargerStatutQuiz(courseId, module.id, progression);
+            }),
+          );
         }
       })
       .catch(() => {
@@ -211,132 +200,147 @@ export const CourseDetail: React.FC = () => {
 
   useEffect(() => {
     if (!courseId || !currentUser) return;
-
-    // Admin → accès total sans vérification
     if (currentUser.role === "admin") {
       setIsCoded(false);
       setAAcces(true);
       setCheckingAcces(false);
       return;
     }
-
     verifierAccesFormation(courseId)
       .then((data) => {
         setIsCoded(data.is_coded);
-
-        // ✅ Formateur propriétaire → accès direct (même si formation codée)
-        const estProprietaire = (data as any).est_proprietaire === true;
-        setAAcces(data.a_acces || estProprietaire);
+        const estProp = (data as any).est_proprietaire === true;
+        const hasAcces = data.a_acces || estProp;
+        setAAcces(hasAcces);
+        if (hasAcces && data.is_coded) markUnlocked(courseId); // ✅ Fix 2
       })
       .catch(() => setAAcces(true))
       .finally(() => setCheckingAcces(false));
   }, [courseId, currentUser]);
 
-  if (pageLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
-          <p className="text-slate-400">Chargement de la formation...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (checkingAcces) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-      </div>
-    );
-  }
-
-  if (isCoded && !aAcces) {
-    return (
-      <CodedFormationLock
-        formationId={courseId!}
-        formationTitre={course?.title ?? ""}
-        onAccesAccorde={() => setAAcces(true)}
-      />
-    );
-  }
-
-  if (!course) return null;
-
-  //const isInstructorOrAdmin =
-  //currentUser?.role === "instructor" || currentUser?.role === "admin";
-  const isOwner =
-    isInstructorOrAdmin &&
-    String((course as any).instructorId) === String(currentUser?.id);
-  //const isOwnerInstructor =
-  //isInstructorOrAdmin &&
-  //String((course as any).instructorId) === String(currentUser?.id);
-  const canAccess =
-    isOwnerInstructor || currentUser?.role === "admin" || isEnrolled;
-  const modules = course.modules ?? [];
-
-  // ── Progression globale ───────────────────────────────────
-  const getAllContenus = () => Object.values(moduleContenus).flat();
-
-  const getTotalProgress = (): number => {
-    if (progressionData) {
-      return progressionData.pourcentage_global ?? 0;
-    }
-
-    const all = getAllContenus();
-    if (all.length === 0) return 0;
-
-    const done = all.filter((c) => c.progression?.complete).length;
-    return Math.round((done / all.length) * 100);
-  };
-
+  // ── Progression helpers ───────────────────────────────────
   const getModuleProgress = (moduleId: string): number => {
     if (progressionData?.modules?.length) {
-      const moduleProgress = progressionData.modules.find(
+      const mp = progressionData.modules.find(
         (m) => String(m.module_id) === String(moduleId),
       );
-
-      if (moduleProgress) {
-        return moduleProgress.pourcentage ?? 0;
-      }
+      if (mp) return mp.pourcentage ?? 0;
     }
-
     const c = moduleContenus[moduleId] || [];
     if (c.length === 0) return 0;
-
     return Math.round(
       (c.filter((x) => x.progression?.complete).length / c.length) * 100,
     );
   };
 
-  // ── Inscription ───────────────────────────────────────────
-  const handleEnroll = async () => {
-    if (!currentUser) {
-      navigate("/login");
+  const getTotalProgress = (): number => {
+    if (progressionData) return progressionData.pourcentage_global ?? 0;
+    const all = Object.values(moduleContenus).flat();
+    if (all.length === 0) return 0;
+    return Math.round(
+      (all.filter((c) => c.progression?.complete).length / all.length) * 100,
+    );
+  };
+
+  // ── Fix 3 — Vérifier si un module est complet (contenus + quiz réussi) ──
+  const isModuleComplete = (moduleId: string): boolean => {
+    const progress = getModuleProgress(moduleId);
+    if (progress < 100) return false;
+
+    const quizStatus = moduleQuizStatus[moduleId];
+    if (!quizStatus?.quizId) return true; // pas de quiz = seulement contenus
+
+    // Vérifier qu'au moins une tentative est réussie
+    const tentatives = progressionData?.tentatives_quiz ?? [];
+    const quizTentatives = tentatives.filter(
+      (t: any) => String(t.quiz_id) === String(quizStatus.quizId),
+    );
+    return quizTentatives.some((t: any) => t.reussi === true);
+  };
+
+  // ── Fix 3 — Vérifier si un module est accessible ─────────
+  const modules = course?.modules ?? [];
+  const sortedModules = [...modules].sort((a, b) => a.order - b.order);
+
+  const isModuleUnlocked = (index: number): boolean => {
+    if (!canAccess) return false;
+
+    // ✅ Admin → accès total à tous les modules
+    if (currentUser?.role === "admin") return true;
+
+    // ✅ Créateur de la formation (propriétaire) → accès total
+    if (isOwnerInstructor) return true;
+
+    // Premier module toujours accessible
+    if (index === 0) return true;
+
+    // Module N accessible si module N-1 est complet (pour les apprenants)
+    const prevModule = sortedModules[index - 1];
+    return isModuleComplete(prevModule.id);
+  };
+
+  // ── Dernier module ────────────────────────────────────────
+  const lastModuleId = sortedModules[sortedModules.length - 1]?.id ?? null;
+
+  // ── Fix 3 — Click sur le bouton quiz ─────────────────────
+  const handleQuizClick = (
+    e: React.MouseEvent,
+    moduleId: string,
+    quizId: string | null,
+    moduleIndex: number,
+  ) => {
+    e.stopPropagation();
+
+    // Vérifier que le module est accessible (module précédent complété)
+    if (!isModuleUnlocked(moduleIndex)) {
+      const prevModule = sortedModules[moduleIndex - 1];
+      toast.error(
+        `Terminez d'abord le module "${prevModule?.title ?? "précédent"}" et son quiz.`,
+      );
       return;
     }
-    setEnrolling(true);
-    try {
-      await enrollFormation(courseId!);
-      setIsEnrolled(true);
-      toast.success("Inscription réussie ! Bonne formation !");
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        const msg = error.response?.data?.message || "";
-        if (error.response?.status === 409) {
-          setIsEnrolled(true); // déjà inscrit → mettre à jour l'état
-          toast.info("Vous êtes déjà inscrit à cette formation");
-        } else {
-          toast.error(msg || "Erreur lors de l'inscription");
-        }
-      }
-    } finally {
-      setEnrolling(false);
+
+    // Vérifier que tous les contenus du module sont terminés à 100%
+    const moduleProgress = getModuleProgress(moduleId);
+    if (moduleProgress < 100) {
+      const contenusRestants = (moduleContenus[moduleId] || []).filter(
+        (c) => !c.progression?.complete,
+      ).length;
+      toast.warning(
+        `📚 Terminez tous les contenus du module avant d'accéder au quiz.\n${contenusRestants} contenu(s) restant(s).`,
+        { duration: 4000 },
+      );
+      return;
+    }
+
+    const target = `/app/courses/${courseId}/modules/${moduleId}/quiz/${quizId ?? "0"}`;
+    const isLastModule = moduleId === lastModuleId;
+    const isStudying =
+      currentUser?.role === "learner" ||
+      (currentUser?.role === "instructor" && isEnrolled && !isOwnerInstructor);
+
+    // ✅ Vérifie si l'utilisateur a déjà donné un feedback
+    const alreadyHasFeedback = !!(monFeedback && monFeedback.note);
+
+    if (isLastModule && isStudying && !alreadyHasFeedback && canAccess) {
+      setPendingQuizNav(target);
+      setShowFeedbackModal(true);
+    } else {
+      navigate(target);
     }
   };
 
-  // ── Charger contenus d'un module ──────────────────────────
-  const handleToggleModule = async (moduleId: string) => {
+  // ── Chargement module ─────────────────────────────────────
+  const handleToggleModule = async (moduleId: string, moduleIndex: number) => {
+    // Fix 3 — Vérifier accès
+    if (!isModuleUnlocked(moduleIndex) && canAccess) {
+      const prevModule = sortedModules[moduleIndex - 1];
+      toast.error(
+        `Terminez le module "${prevModule?.title ?? "précédent"}" et son quiz pour accéder à celui-ci.`,
+      );
+      return;
+    }
+
     if (openModuleId === moduleId) {
       setOpenModuleId(null);
       setSelectedContent(null);
@@ -357,24 +361,36 @@ export const CourseDetail: React.FC = () => {
           setLoadingContenus((prev) => ({ ...prev, [moduleId]: false }));
         }
       }
-
       if (!moduleQuizStatus[moduleId]) {
         await chargerStatutQuiz(courseId, moduleId, progressionData);
       }
     }
   };
 
-  // ── Sélectionner un contenu ───────────────────────────────
   const handleSelectContent = (
     moduleId: string,
     content: Content & { progression?: any },
   ) => {
+    // ✅ Admin ou créateur peuvent voir tous les contenus sans vérification
+    if (currentUser?.role === "admin" || isOwnerInstructor) {
+      setSelectedContent({ moduleId, content });
+      setTimeout(
+        () =>
+          document
+            .getElementById("content-viewer")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        100,
+      );
+      return;
+    }
+
+    // Pour les apprenants : vérifier l'inscription
     if (!canAccess) {
       toast.error("Inscrivez-vous pour accéder aux contenus");
       return;
     }
+
     setSelectedContent({ moduleId, content });
-    // Scroll vers le lecteur
     setTimeout(
       () =>
         document
@@ -384,7 +400,6 @@ export const CourseDetail: React.FC = () => {
     );
   };
 
-  // ── Marquer terminé ───────────────────────────────────────
   const handleContentComplete = async (moduleId: string, contentId: string) => {
     setModuleContenus((prev) => ({
       ...prev,
@@ -394,7 +409,6 @@ export const CourseDetail: React.FC = () => {
           : c,
       ),
     }));
-
     if (selectedContent?.content.id === contentId) {
       setSelectedContent((prev) =>
         prev
@@ -408,21 +422,75 @@ export const CourseDetail: React.FC = () => {
           : null,
       );
     }
-
-    if (
-      courseId &&
-      (currentUser?.role === "learner" ||
-        (currentUser?.role === "instructor" && isEnrolled))
-    ) {
+    if (courseId && currentUser?.role === "learner") {
       await chargerProgression(courseId);
     }
   };
 
+  const handleEnroll = async () => {
+    if (!currentUser) {
+      navigate("/login");
+      return;
+    }
+    setEnrolling(true);
+    try {
+      await enrollFormation(courseId!);
+      setIsEnrolled(true);
+      toast.success("Inscription réussie !");
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 409) {
+          setIsEnrolled(true);
+          toast.info("Vous êtes déjà inscrit");
+        } else toast.error(error.response?.data?.message || "Erreur");
+      }
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  // ── Guards ────────────────────────────────────────────────
+  if (pageLoading)
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
+          <p className="text-slate-400">Chargement de la formation...</p>
+        </div>
+      </div>
+    );
+
+  if (checkingAcces)
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    );
+
+  if (isCoded && !aAcces)
+    return (
+      <CodedFormationLock
+        formationId={courseId!}
+        formationTitre={course?.title ?? ""}
+        onAccesAccorde={() => {
+          setAAcces(true);
+          markUnlocked(courseId!); // ✅ Fix 2
+        }}
+      />
+    );
+
+  if (!course) return null;
+
+  const isOwner =
+    isInstructorOrAdmin &&
+    String((course as any).instructorId) === String(currentUser?.id);
+  const canAccess =
+    isOwnerInstructor || currentUser?.role === "admin" || isEnrolled;
   const totalProgress = getTotalProgress();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
-      {/* ── Bouton retour ── */}
+      {/* Bouton retour */}
       <div className="max-w-6xl mx-auto px-6 pt-6">
         <Button
           variant="ghost"
@@ -433,12 +501,7 @@ export const CourseDetail: React.FC = () => {
         </Button>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          HERO — FINAL BOSS / ULTRA PREMIUM
-      ══════════════════════════════════════════════════════ */}
-      {/* ══════════════════════════════════════════════════════
-          HERO — FINAL BOSS / ULTRA PREMIUM
-      ══════════════════════════════════════════════════════ */}
+      {/* HERO */}
       <div className="max-w-7xl mx-auto px-6 pt-4 pb-8">
         <motion.div
           initial={{ opacity: 0, y: 26, scale: 0.985 }}
@@ -446,125 +509,89 @@ export const CourseDetail: React.FC = () => {
           transition={{ duration: 0.7, ease: "easeOut" }}
           className="group relative overflow-hidden rounded-[34px] border border-white/10 bg-[#050816] shadow-[0_35px_120px_rgba(0,0,0,0.58)]"
         >
-          {/* Background image / atmosphere */}
           <div className="absolute inset-0">
-            {course.thumbnail ? (
+            {course.thumbnail && (
               <img
                 src={course.thumbnail}
                 alt={course.title}
-                className="h-full w-full object-cover opacity-[0.09] scale-110 transition-transform duration-[5000ms] group-hover:scale-[1.14]"
+                className="h-full w-full object-cover opacity-[0.09] scale-110"
                 onError={(e) => {
                   e.currentTarget.style.display = "none";
                 }}
               />
-            ) : null}
-
+            )}
             <div className="absolute -top-24 left-6 h-80 w-80 rounded-full bg-blue-500/20 blur-3xl" />
             <div className="absolute top-0 right-0 h-96 w-96 rounded-full bg-violet-500/20 blur-3xl" />
-            <div className="absolute -bottom-28 left-1/3 h-80 w-80 rounded-full bg-cyan-500/12 blur-3xl" />
-            <div className="absolute bottom-4 right-1/4 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
-
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(59,130,246,0.24),transparent_22%),radial-gradient(circle_at_86%_15%,rgba(168,85,247,0.18),transparent_24%),radial-gradient(circle_at_55%_100%,rgba(6,182,212,0.12),transparent_28%)]" />
-
-            <div className="absolute inset-0 opacity-[0.055] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:36px_36px]" />
-
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/72 to-slate-950/22" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/88 via-transparent to-transparent" />
-
-            <div className="absolute inset-y-0 left-[-20%] w-[40%] rotate-12 bg-gradient-to-r from-transparent via-white/[0.04] to-transparent blur-3xl" />
           </div>
-
-          {/* inner border */}
           <div className="pointer-events-none absolute inset-[1px] rounded-[33px] border border-white/5" />
 
-          <div className="relative z-10 grid min-h-[410px] grid-cols-1 lg:grid-cols-[1.18fr_0.82fr]">
-            {/* LEFT SIDE */}
-            <div className="px-6 py-7 md:px-8 md:py-9 lg:px-10 lg:py-10 xl:px-12 xl:py-12">
-              <div className="max-w-3xl">
-                {/* top badges */}
-                <div className="mb-5 flex flex-wrap items-center gap-2.5">
-                  {course.category && (
-                    <motion.span
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.05 }}
-                      className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-500/15 px-3.5 py-1.5 text-xs font-semibold text-blue-200 backdrop-blur-xl"
-                    >
-                      {course.category}
-                    </motion.span>
-                  )}
+          <div className="relative z-10 grid min-h-[380px] grid-cols-1 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="px-8 py-10 lg:px-12">
+              {/* Badges catégorie + niveau */}
+              <div className="mb-5 flex flex-wrap items-center gap-2.5">
+                {course.category && (
+                  <span className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-500/15 px-3.5 py-1.5 text-xs font-semibold text-blue-200">
+                    {course.category}
+                  </span>
+                )}
+                <span
+                  className={`inline-flex items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
+                    course.level === "Débutant"
+                      ? "border-emerald-400/20 bg-emerald-500/15 text-emerald-200"
+                      : course.level === "Intermédiaire"
+                        ? "border-amber-400/20 bg-amber-500/15 text-amber-200"
+                        : "border-rose-400/20 bg-rose-500/15 text-rose-200"
+                  }`}
+                >
+                  {course.level}
+                </span>
+              </div>
 
-                  <motion.span
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className={`inline-flex items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold backdrop-blur-xl ${
-                      course.level === "Débutant"
-                        ? "border-emerald-400/20 bg-emerald-500/15 text-emerald-200"
-                        : course.level === "Intermédiaire"
-                          ? "border-amber-400/20 bg-amber-500/15 text-amber-200"
-                          : "border-rose-400/20 bg-rose-500/15 text-rose-200"
-                    }`}
-                  >
-                    {course.level}
-                  </motion.span>
+              <h1 className="text-3xl font-black tracking-tight text-white md:text-4xl xl:text-5xl">
+                {course.title}
+              </h1>
+              <p className="mt-4 text-sm leading-7 text-slate-300/90">
+                Développez vos compétences avec une expérience d'apprentissage
+                fluide et interactive.
+              </p>
 
-                  <motion.span
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 }}
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-300 backdrop-blur-xl"
-                  >
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                    </span>
-                    Actif
-                  </motion.span>
+              {/* Stats */}
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
+                  <Clock className="h-4 w-4 text-blue-400" />
+                  <span>{course.estimatedDuration}h de contenu</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
+                  <BookOpen className="h-4 w-4 text-indigo-400" />
+                  <span>
+                    {modules.length} module{modules.length > 1 ? "s" : ""}
+                  </span>
                 </div>
 
-                {/* title */}
-                <motion.h1
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-3xl font-black tracking-[-0.04em] text-white leading-[1.02] md:text-4xl xl:text-[3.45rem]"
-                >
-                  {course.title}
-                </motion.h1>
-
-                {/* subtitle */}
-                <motion.p
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.28 }}
-                  className="mt-4 max-w-2xl text-sm leading-7 text-slate-300/90 md:text-[15px]"
-                >
-                  Développez vos compétences avec une expérience d’apprentissage
-                  fluide et interactive.
-                </motion.p>
-
-                {/* quick stats */}
-                <motion.div
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.34 }}
-                  className="mt-7 flex flex-wrap items-center gap-3"
-                >
-                  <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl shadow-lg shadow-black/10">
-                    <Clock className="h-4 w-4 text-blue-400" />
-                    <span>{course.estimatedDuration}h de contenu</span>
-                  </div>
-
-                  <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl shadow-lg shadow-black/10">
-                    <BookOpen className="h-4 w-4 text-indigo-400" />
-                    <span>
-                      {modules.length} module{modules.length > 1 ? "s" : ""}
-                    </span>
-                  </div>
-
-                  {(course as any).instructor && (
-                    <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl shadow-lg shadow-black/10">
+                {(course as any).instructor &&
+                  canAccess &&
+                  !isOwnerInstructor &&
+                  !isOwner && (
+                    <>
+                      <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
+                        <Users className="h-4 w-4 text-violet-400" />
+                        <span>
+                          {(course as any).instructor.firstName}{" "}
+                          {(course as any).instructor.lastName}
+                        </span>
+                      </div>
+                      <CourseChat
+                        formationId={courseId!}
+                        instructorName={`${(course as any).instructor.firstName} ${(course as any).instructor.lastName}`}
+                        instructorId={String((course as any).instructorId)}
+                      />
+                    </>
+                  )}
+                {(course as any).instructor &&
+                  (isOwnerInstructor || isOwner) && (
+                    <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
                       <Users className="h-4 w-4 text-violet-400" />
                       <span>
                         {(course as any).instructor.firstName}{" "}
@@ -572,94 +599,75 @@ export const CourseDetail: React.FC = () => {
                       </span>
                     </div>
                   )}
-                </motion.div>
+              </div>
 
-                {/* CTA section */}
-                <motion.div
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.42 }}
-                  className="mt-9 flex flex-wrap items-center gap-4"
-                >
-                  {currentUser?.role === "learner" ||
-                  (currentUser?.role === "instructor" &&
-                    String((course as any).instructorId) !==
-                      String(currentUser?.id)) ? (
-                    isEnrolled ? (
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/15 px-5 py-3 text-sm font-semibold text-emerald-300 backdrop-blur-2xl shadow-[0_10px_35px_rgba(16,185,129,0.12)]">
-                          <CheckCircle className="h-4 w-4" />
-                          Vous êtes inscrit
-                        </div>
-
-                        <div className="min-w-[250px] rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-2xl shadow-[0_15px_45px_rgba(0,0,0,0.22)]">
-                          <div className="mb-2 flex items-center justify-between text-xs">
-                            <span className="text-slate-400">Progression</span>
-                            <span className="font-semibold text-blue-300">
-                              {totalProgress}%
-                            </span>
-                          </div>
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${totalProgress}%` }}
-                              transition={{ duration: 1.1, ease: "easeOut" }}
-                              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <motion.button
-                        whileHover={{ scale: 1.03, y: -2 }}
-                        whileTap={{ scale: 0.985 }}
-                        onClick={handleEnroll}
-                        disabled={enrolling}
-                        className="group relative inline-flex items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(59,130,246,0.3)] transition-all disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <span className="absolute inset-0 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.18),transparent)] translate-x-[-130%] group-hover:translate-x-[130%] transition-transform duration-1000" />
-                        <span className="relative z-10 flex items-center gap-2">
-                          {enrolling ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Inscription...
-                            </>
-                          ) : (
-                            <>
-                              <Award className="h-4 w-4" />
-                              S'inscrire gratuitement
-                            </>
-                          )}
-                        </span>
-                      </motion.button>
-                    )
-                  ) : isInstructorOrAdmin ? (
+              {/* CTA */}
+              <div className="mt-9 flex flex-wrap items-center gap-4">
+                {currentUser?.role === "learner" ||
+                (currentUser?.role === "instructor" && !isOwner) ? (
+                  isEnrolled ? (
                     <div className="flex flex-wrap items-center gap-3">
-                      <div className="inline-flex items-center gap-2 rounded-2xl border border-blue-400/20 bg-blue-500/15 px-5 py-3 text-sm font-medium text-blue-200 backdrop-blur-2xl">
-                        <BookOpen className="h-4 w-4" />
-                        Accès formateur
+                      <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/15 px-5 py-3 text-sm font-semibold text-emerald-300">
+                        <CheckCircle className="h-4 w-4" /> Vous êtes inscrit
                       </div>
-
-                      {(isOwner || currentUser?.role === "admin") && (
-                        <motion.button
-                          whileHover={{ scale: 1.02, y: -1 }}
-                          whileTap={{ scale: 0.985 }}
-                          onClick={() =>
-                            navigate(`/app/courses/edit/${courseId}`)
-                          }
-                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-medium text-slate-200 backdrop-blur-2xl transition hover:bg-white/15"
-                        >
-                          <Edit className="h-4 w-4" />
-                          Modifier
-                        </motion.button>
-                      )}
+                      <div className="min-w-[220px] rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                        <div className="mb-2 flex items-center justify-between text-xs">
+                          <span className="text-slate-400">Progression</span>
+                          <span className="font-semibold text-blue-300">
+                            {totalProgress}%
+                          </span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${totalProgress}%` }}
+                            transition={{ duration: 1.1, ease: "easeOut" }}
+                            className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  ) : null}
-                </motion.div>
+                  ) : (
+                    <motion.button
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.985 }}
+                      onClick={handleEnroll}
+                      disabled={enrolling}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(59,130,246,0.3)] disabled:opacity-60"
+                    >
+                      {enrolling ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                          Inscription...
+                        </>
+                      ) : (
+                        <>
+                          <Award className="h-4 w-4" /> S'inscrire gratuitement
+                        </>
+                      )}
+                    </motion.button>
+                  )
+                ) : isInstructorOrAdmin ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="inline-flex items-center gap-2 rounded-2xl border border-blue-400/20 bg-blue-500/15 px-5 py-3 text-sm font-medium text-blue-200">
+                      <BookOpen className="h-4 w-4" /> Accès formateur
+                    </div>
+                    {(isOwner || currentUser?.role === "admin") && (
+                      <button
+                        onClick={() =>
+                          navigate(`/app/courses/edit/${courseId}`)
+                        }
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-medium text-slate-200 hover:bg-white/15 transition"
+                      >
+                        <Edit className="h-4 w-4" /> Modifier
+                      </button>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            {/* RIGHT SIDE — COURBE PREMIUM SEULE */}
+            {/* RIGHT SIDE — COURBE PREMIUM */}
             <div className="relative hidden lg:block">
               <div className="absolute inset-0 flex items-center justify-center p-8">
                 <motion.div
@@ -678,7 +686,7 @@ export const CourseDetail: React.FC = () => {
                       Analytics
                     </p>
                     <h3 className="mt-1 text-lg font-semibold text-white">
-                      Votre croissance augmente toujours
+                      Continuez à progresser avec nous
                     </h3>
                     <p className="mt-1 text-xs text-slate-400">
                       Progression d’apprentissage
@@ -720,7 +728,6 @@ export const CourseDetail: React.FC = () => {
                         <stop offset="55%" stopColor="rgba(96,165,250,0.12)" />
                         <stop offset="100%" stopColor="rgba(139,92,246,0.02)" />
                       </linearGradient>
-
                       <linearGradient
                         id="curveLineGradient"
                         x1="0%"
@@ -732,7 +739,6 @@ export const CourseDetail: React.FC = () => {
                         <stop offset="50%" stopColor="#60a5fa" />
                         <stop offset="100%" stopColor="#8b5cf6" />
                       </linearGradient>
-
                       <filter id="curveGlow">
                         <feGaussianBlur stdDeviation="5" result="blur" />
                         <feMerge>
@@ -746,12 +752,7 @@ export const CourseDetail: React.FC = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.9 }}
-                      d="M 35 215
-                         C 80 208, 110 194, 145 176
-                         C 180 158, 210 164, 245 132
-                         C 278 102, 315 108, 350 76
-                         C 372 56, 392 48, 405 34
-                         L 405 248 L 35 248 Z"
+                      d="M 35 215 C 80 208, 110 194, 145 176 C 180 158, 210 164, 245 132 C 278 102, 315 108, 350 76 C 372 56, 392 48, 405 34 L 405 248 L 35 248 Z"
                       fill="url(#curveFillGradient)"
                     />
 
@@ -763,11 +764,7 @@ export const CourseDetail: React.FC = () => {
                         delay: 0.15,
                         ease: "easeOut",
                       }}
-                      d="M 35 215
-                         C 80 208, 110 194, 145 176
-                         C 180 158, 210 164, 245 132
-                         C 278 102, 315 108, 350 76
-                         C 372 56, 392 48, 405 34"
+                      d="M 35 215 C 80 208, 110 194, 145 176 C 180 158, 210 164, 245 132 C 278 102, 315 108, 350 76 C 372 56, 392 48, 405 34"
                       fill="none"
                       stroke="url(#curveLineGradient)"
                       strokeWidth="5"
@@ -783,11 +780,7 @@ export const CourseDetail: React.FC = () => {
                         delay: 0.15,
                         ease: "easeOut",
                       }}
-                      d="M 35 215
-                         C 80 208, 110 194, 145 176
-                         C 180 158, 210 164, 245 132
-                         C 278 102, 315 108, 350 76
-                         C 372 56, 392 48, 405 34"
+                      d="M 35 215 C 80 208, 110 194, 145 176 C 180 158, 210 164, 245 132 C 278 102, 315 108, 350 76 C 372 56, 392 48, 405 34"
                       fill="none"
                       stroke="url(#curveLineGradient)"
                       strokeWidth="3.2"
@@ -848,7 +841,7 @@ export const CourseDetail: React.FC = () => {
                   {/* footer */}
                   <div className="absolute bottom-10 left-6 z-10">
                     <p className="text-sm font-semibold text-white">
-                      Croissance continue
+                      Votre croissance augmente toujours
                     </p>
                   </div>
                 </motion.div>
@@ -858,47 +851,38 @@ export const CourseDetail: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          CONTENU PRINCIPAL
-      ══════════════════════════════════════════════════════ */}
+      {/* CONTENU */}
       <div className="max-w-6xl mx-auto px-6 pb-12 space-y-6">
         {/* Description */}
         {course.description && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-3">
-                À propos de cette formation
-              </h2>
-              <p className="text-slate-400 leading-relaxed">
-                {course.description}
-              </p>
-              {course.prerequisites?.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3 flex-wrap">
-                  <p className="text-sm font-medium text-slate-300 whitespace-nowrap">
-                    Prérequis
-                  </p>
-
-                  <div className="flex flex-wrap gap-2">
-                    {course.prerequisites.map((p, i) => (
-                      <span
-                        key={i}
-                        className="flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1"
-                      >
-                        <CheckCircle className="w-3 h-3" /> {p}
-                      </span>
-                    ))}
-                  </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-3">
+              À propos de cette formation
+            </h2>
+            <p className="text-slate-400 leading-relaxed">
+              {course.description}
+            </p>
+            {course.prerequisites?.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3 flex-wrap">
+                <p className="text-sm font-medium text-slate-300 whitespace-nowrap">
+                  Prérequis
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {course.prerequisites.map((p, i) => (
+                    <span
+                      key={i}
+                      className="flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1"
+                    >
+                      <CheckCircle className="w-3 h-3" /> {p}
+                    </span>
+                  ))}
                 </div>
-              )}
-            </div>
-          </motion.div>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* ── Lecteur de contenu ── */}
+        {/* Lecteur de contenu */}
         <AnimatePresence>
           {selectedContent && (
             <motion.div
@@ -913,9 +897,7 @@ export const CourseDetail: React.FC = () => {
                   <span className="text-sm font-semibold text-blue-400">
                     Lecture en cours
                   </span>
-                  <span className="text-sm text-slate-500"></span>
                 </div>
-
                 <ContentViewer
                   content={selectedContent.content}
                   formationId={courseId!}
@@ -939,7 +921,7 @@ export const CourseDetail: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* ── Modules & contenus ── */}
+        {/* Modules */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -962,225 +944,268 @@ export const CourseDetail: React.FC = () => {
               </div>
             ) : (
               <div className="divide-y divide-white/5">
-                {[...modules]
-                  .sort((a, b) => a.order - b.order)
-                  .map((module, index) => {
-                    const isOpen = openModuleId === module.id;
-                    const contenus = moduleContenus[module.id] || [];
-                    const isLoadingC = loadingContenus[module.id];
-                    const quizStatus = moduleQuizStatus[module.id];
-                    const modProg = getModuleProgress(module.id);
+                {sortedModules.map((module, index) => {
+                  const isOpen = openModuleId === module.id;
+                  const contenus = moduleContenus[module.id] || [];
+                  const isLoadingC = loadingContenus[module.id];
+                  const quizStatus = moduleQuizStatus[module.id];
+                  const modProg = getModuleProgress(module.id);
+                  // ✅ Fix 3 — Vérifier si ce module est accessible
+                  const moduleAccess = isModuleUnlocked(index);
+                  const isLastModule = module.id === lastModuleId;
 
-                    return (
-                      <div key={module.id}>
-                        {/* En-tête module */}
-                        {/* En-tête module */}
-                        <div className="w-full flex items-center gap-3 px-6 py-4 hover:bg-white/5 transition-colors">
-                          <button
-                            onClick={() => handleToggleModule(module.id)}
-                            className="flex-1 min-w-0 flex items-center gap-4 text-left group"
-                          >
-                            {/* Numéro */}
-                            <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${
-                                isOpen
+                  return (
+                    <div key={module.id}>
+                      <div
+                        className={`w-full flex items-center gap-3 px-6 py-4 transition-colors ${
+                          moduleAccess ? "hover:bg-white/5" : "opacity-60"
+                        }`}
+                      >
+                        <button
+                          onClick={() => handleToggleModule(module.id, index)}
+                          className="flex-1 min-w-0 flex items-center gap-4 text-left group"
+                        >
+                          {/* Numéro / lock */}
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${
+                              !moduleAccess && canAccess
+                                ? "bg-slate-700/50 text-slate-600"
+                                : isOpen
                                   ? "bg-blue-600 text-white"
                                   : "bg-white/10 text-slate-400 group-hover:bg-white/15"
-                              }`}
-                            >
-                              {index + 1}
-                            </div>
+                            }`}
+                          >
+                            {!moduleAccess && canAccess ? (
+                              <Lock className="w-4 h-4" />
+                            ) : (
+                              index + 1
+                            )}
+                          </div>
 
-                            {/* Titre + durée + description */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-3">
-                                <p className="font-semibold text-white truncate">
-                                  {module.title}
-                                </p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3">
+                              <p className="font-semibold text-white truncate">
+                                {module.title}
+                              </p>
 
-                                {module.duration > 0 && (
-                                  <span className="text-xs text-slate-500 shrink-0">
-                                    {module.duration} min
+                              {/* Message module verrouillé - visible seulement pour les apprenants */}
+                              {!moduleAccess &&
+                                canAccess &&
+                                index > 0 &&
+                                currentUser?.role !== "admin" &&
+                                !isOwnerInstructor && (
+                                  <span className="text-xs text-slate-600 shrink-0">
+                                    🔒 Terminez le module {index} d'abord
                                   </span>
                                 )}
-                              </div>
-
-                              {module.description && (
-                                <p
-                                  className={`text-xs text-slate-500 mt-0.5 transition-all ${
-                                    isOpen
-                                      ? "whitespace-pre-wrap break-words line-clamp-none"
-                                      : "truncate"
-                                  }`}
-                                >
-                                  {module.description}
-                                </p>
+                              {module.duration > 0 && (
+                                <span className="text-xs text-slate-500 shrink-0">
+                                  {module.duration} min
+                                </span>
                               )}
                             </div>
-
-                            {/* Progression + durée + chevron */}
-                            <div className="flex items-center gap-3 shrink-0">
-                              {currentUser?.role === "learner" &&
-                                isEnrolled && (
-                                  <div className="hidden sm:flex items-center gap-2">
-                                    <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                      <div
-                                        className="h-full bg-blue-500 rounded-full"
-                                        style={{ width: `${modProg}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-xs text-slate-500">
-                                      {modProg}%
-                                    </span>
-                                  </div>
-                                )}
-
-                              <div
-                                className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                            {module.description && (
+                              <p
+                                className={`text-xs text-slate-500 mt-0.5 ${isOpen ? "" : "truncate"}`}
                               >
-                                <ChevronDown className="w-4 h-4 text-slate-500" />
-                              </div>
-                            </div>
-                          </button>
+                                {module.description}
+                              </p>
+                            )}
+                          </div>
 
-                          {canAccess && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
+                          <div className="flex items-center gap-3 shrink-0">
+                            {currentUser?.role === "learner" && isEnrolled && (
+                              <div className="hidden sm:flex items-center gap-2">
+                                <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-blue-500 rounded-full"
+                                    style={{ width: `${modProg}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-slate-500">
+                                  {modProg}%
+                                </span>
+                              </div>
+                            )}
+                            <div
+                              className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                            >
+                              <ChevronDown className="w-4 h-4 text-slate-500" />
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Bouton quiz - Admin et créateur ont accès direct */}
+                        {canAccess && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+
+                              // ✅ Admin ou créateur → accès direct sans vérification
+                              if (
+                                currentUser?.role === "admin" ||
+                                isOwnerInstructor
+                              ) {
                                 navigate(
                                   `/app/courses/${courseId}/modules/${module.id}/quiz/${quizStatus?.quizId ?? "0"}`,
                                 );
-                              }}
-                              className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                                quizStatus?.termine
-                                  ? "text-green-400 border-green-500/20 bg-green-500/5 hover:bg-green-500/10"
-                                  : "text-purple-400 border-purple-500/20 bg-purple-500/5 hover:bg-purple-500/10"
-                              }`}
-                            >
-                              {quizStatus?.termine ? (
-                                <CheckCircle className="w-4 h-4" />
-                              ) : (
-                                <Award className="w-4 h-4" />
-                              )}
-                              {quizStatus?.termine
-                                ? "Quiz terminé"
-                                : "Passer le quiz"}
-                            </button>
-                          )}
-                        </div>
+                                return;
+                              }
 
-                        {/* Liste des contenus */}
-                        <AnimatePresence>
-                          {isOpen && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden bg-black/20"
-                            >
-                              {isLoadingC ? (
-                                <div className="flex justify-center py-8">
-                                  <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                                </div>
-                              ) : contenus.length === 0 ? (
-                                <p className="text-center text-sm text-slate-600 py-6">
-                                  Aucun contenu dans ce module
-                                </p>
-                              ) : (
-                                <div className="py-2">
-                                  {contenus.map((c, ci) => {
-                                    const isSelected =
-                                      selectedContent?.content.id === c.id;
-                                    const isDone = c.progression?.complete;
-                                    return (
-                                      <motion.div
-                                        key={c.id}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: ci * 0.05 }}
-                                        className={`w-full transition-all ${
-                                          isSelected
-                                            ? "bg-blue-500/10 border-l-2 border-blue-500"
-                                            : "hover:bg-white/5 border-l-2 border-transparent"
-                                        } ${!canAccess ? "opacity-50" : ""}`}
-                                      >
-                                        <div
-                                          onClick={() =>
-                                            handleSelectContent(module.id, c)
-                                          }
-                                          className={`w-full flex items-center gap-3 px-6 py-3 text-left ${
-                                            !canAccess
-                                              ? "cursor-not-allowed"
-                                              : "cursor-pointer"
-                                          }`}
-                                        >
-                                          {/* Icône état */}
-                                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-white/5">
-                                            {!canAccess ? (
-                                              <Lock className="w-3.5 h-3.5 text-slate-600" />
-                                            ) : (
-                                              <ContentIcon
-                                                type={c.type}
-                                                className={`w-3.5 h-3.5 ${isDone ? "opacity-90" : ""}`}
-                                              />
-                                            )}
-                                          </div>
-                                          {/* Infos */}
-                                          <div className="flex-1 min-w-0">
-                                            <p
-                                              className={`text-sm font-medium truncate ${
-                                                isSelected
-                                                  ? "text-blue-400"
-                                                  : isDone
-                                                    ? "text-slate-500"
-                                                    : "text-slate-300"
-                                              }`}
-                                            >
-                                              {c.title}
-                                            </p>
-                                            {c.summary && (
-                                              <p className="text-xs text-slate-600 truncate">
-                                                {c.summary}
-                                              </p>
-                                            )}
-                                          </div>
-                                          {/* Badges */}
-                                          <div className="flex items-center gap-2 shrink-0">
-                                            {c.duration > 0 && (
-                                              <span className="text-xs text-slate-600">
-                                                {c.duration} min
-                                              </span>
-                                            )}
-                                            {isDone && (
-                                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
-                                                ✓ Terminé
-                                              </span>
-                                            )}
-                                            {isSelected && !isDone && (
-                                              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                                En cours
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </motion.div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                              // Pour les apprenants, passer par handleQuizClick avec vérifications
+                              handleQuizClick(
+                                e,
+                                module.id,
+                                quizStatus?.quizId ?? null,
+                                index,
+                              );
+                            }}
+                            disabled={false}
+                            className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-200 ${
+                              quizStatus?.termine
+                                ? "text-green-400 border-green-500/30 bg-green-500/10 hover:bg-green-500/20"
+                                : "text-purple-400 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 hover:scale-105"
+                            }`}
+                          >
+                            {quizStatus?.termine ? (
+                              <>
+                                <CheckCircle className="w-4 h-4" />
+                                Quiz terminé
+                              </>
+                            ) : (
+                              <>
+                                <Award className="w-4 h-4" />
+                                Passer le quiz
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
-                    );
-                  })}
+
+                      {/* Contenus du module */}
+                      <AnimatePresence>
+                        {isOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden bg-black/20"
+                          >
+                            {isLoadingC ? (
+                              <div className="flex justify-center py-8">
+                                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                              </div>
+                            ) : contenus.length === 0 ? (
+                              <p className="text-center text-sm text-slate-600 py-6">
+                                Aucun contenu
+                              </p>
+                            ) : (
+                              <div className="py-2">
+                                {contenus.map((c, ci) => {
+                                  const isSelected =
+                                    selectedContent?.content.id === c.id;
+                                  const isDone = c.progression?.complete;
+                                  return (
+                                    <motion.div
+                                      key={c.id}
+                                      initial={{ opacity: 0, x: -10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: ci * 0.05 }}
+                                      className={`w-full transition-all ${
+                                        isSelected
+                                          ? "bg-blue-500/10 border-l-2 border-blue-500"
+                                          : "hover:bg-white/5 border-l-2 border-transparent"
+                                      } ${!canAccess ? "opacity-50" : ""}`}
+                                    >
+                                      <div
+                                        onClick={() =>
+                                          handleSelectContent(module.id, c)
+                                        }
+                                        className={`w-full flex items-center gap-3 px-6 py-3 ${
+                                          !canAccess
+                                            ? "cursor-not-allowed"
+                                            : "cursor-pointer"
+                                        }`}
+                                      >
+                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-white/5">
+                                          {!canAccess ? (
+                                            <Lock className="w-3.5 h-3.5 text-slate-600" />
+                                          ) : (
+                                            <ContentIcon
+                                              type={c.type}
+                                              className="w-3.5 h-3.5"
+                                            />
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p
+                                            className={`text-sm font-medium truncate ${
+                                              isSelected
+                                                ? "text-blue-400"
+                                                : isDone
+                                                  ? "text-slate-500"
+                                                  : "text-slate-300"
+                                            }`}
+                                          >
+                                            {c.title}
+                                          </p>
+                                          {c.summary && (
+                                            <p className="text-xs text-slate-600 truncate">
+                                              {c.summary}
+                                            </p>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          {c.duration > 0 && (
+                                            <span className="text-xs text-slate-600">
+                                              {c.duration} min
+                                            </span>
+                                          )}
+                                          {isDone && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
+                                              ✓ Terminé
+                                            </span>
+                                          )}
+                                          {isSelected && !isDone && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                              En cours
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </motion.div>
 
-        {/* Message inscription si apprenant non inscrit */}
+        {/* ✅ Fix 3 — Section feedbacks (visible par tous) */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+        >
+          {/* Liste des avis */}
+          <FormationFeedbacks
+            formationId={courseId!}
+            key={feedbackRefresh}
+            onRefresh={() => setFeedbackRefresh((r) => r + 1)}
+          />{" "}
+        </motion.div>
+
+        {/* CTA inscription */}
         {(currentUser?.role === "learner" ||
           (currentUser?.role === "instructor" && !isOwnerInstructor)) &&
           !isEnrolled && (
@@ -1205,6 +1230,36 @@ export const CourseDetail: React.FC = () => {
               </div>
             </motion.div>
           )}
+
+        {/* ✅ Fix 3 — Modal feedback */}
+        <FeedbackModal
+          open={showFeedbackModal}
+          formationId={courseId!}
+          formationTitre={course.title}
+          onClose={() => {
+            setShowFeedbackModal(false);
+            // Si l'utilisateur passe, il va quand même au quiz
+            if (pendingQuizNav) {
+              navigate(pendingQuizNav);
+              setPendingQuizNav(null);
+            }
+          }}
+          onSubmitted={() => {
+            setShowFeedbackModal(false);
+            // Rafraîchir l'affichage des feedbacks
+            setFeedbackRefresh((r) => r + 1);
+            // Recharger le feedback de l'utilisateur
+            api
+              .get(`/formations/${courseId}/feedbacks/mon-feedback`)
+              .then((res) => setMonFeedback(res.data))
+              .catch(() => {});
+            // Aller au quiz
+            if (pendingQuizNav) {
+              navigate(pendingQuizNav);
+              setPendingQuizNav(null);
+            }
+          }}
+        />
       </div>
     </div>
   );
