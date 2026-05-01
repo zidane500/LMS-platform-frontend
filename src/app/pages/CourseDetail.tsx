@@ -558,6 +558,8 @@ export const CourseDetail: React.FC = () => {
               </p>
 
               {/* Stats */}
+
+              {/* Stats */}
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
                   <Clock className="h-4 w-4 text-blue-400" />
@@ -570,27 +572,10 @@ export const CourseDetail: React.FC = () => {
                   </span>
                 </div>
 
-                {(course as any).instructor &&
-                  canAccess &&
-                  !isOwnerInstructor &&
-                  !isOwner && (
-                    <>
-                      <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
-                        <Users className="h-4 w-4 text-violet-400" />
-                        <span>
-                          {(course as any).instructor.firstName}{" "}
-                          {(course as any).instructor.lastName}
-                        </span>
-                      </div>
-                      <CourseChat
-                        formationId={courseId!}
-                        instructorName={`${(course as any).instructor.firstName} ${(course as any).instructor.lastName}`}
-                        instructorId={String((course as any).instructorId)}
-                      />
-                    </>
-                  )}
-                {(course as any).instructor &&
-                  (isOwnerInstructor || isOwner) && (
+                {/* ✅ Section formateur et chat - AJOUTER CE BLOQUE */}
+                {(course as any).instructor && canAccess && (
+                  <>
+                    {/* Nom du formateur */}
                     <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
                       <Users className="h-4 w-4 text-violet-400" />
                       <span>
@@ -598,7 +583,16 @@ export const CourseDetail: React.FC = () => {
                         {(course as any).instructor.lastName}
                       </span>
                     </div>
-                  )}
+                    {/* Chat - seulement si ce n'est pas le créateur */}
+                    {!isOwnerInstructor && !isOwner && (
+                      <CourseChat
+                        formationId={courseId!}
+                        instructorName={`${(course as any).instructor.firstName} ${(course as any).instructor.lastName}`}
+                        instructorId={String((course as any).instructorId)}
+                      />
+                    )}
+                  </>
+                )}
               </div>
 
               {/* CTA */}
@@ -988,6 +982,12 @@ export const CourseDetail: React.FC = () => {
                                 {module.title}
                               </p>
 
+                              {module.duration > 0 && (
+                                <span className="text-xs text-slate-500 shrink-0">
+                                  {module.duration} min
+                                </span>
+                              )}
+
                               {/* Message module verrouillé - visible seulement pour les apprenants */}
                               {!moduleAccess &&
                                 canAccess &&
@@ -998,11 +998,6 @@ export const CourseDetail: React.FC = () => {
                                     🔒 Terminez le module {index} d'abord
                                   </span>
                                 )}
-                              {module.duration > 0 && (
-                                <span className="text-xs text-slate-500 shrink-0">
-                                  {module.duration} min
-                                </span>
-                              )}
                             </div>
                             {module.description && (
                               <p

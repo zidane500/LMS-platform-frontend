@@ -306,6 +306,7 @@ export const Courses: React.FC = () => {
                       (course as any).aAcces === true ||
                       checkUnlocked(String(course.id)) // ← Fix 2 : lecture du localStorage
                     }
+                    isOwner={currentUser?.id === (course as any).instructorId}
                     hasCertificate={certificatFormationIds.includes(
                       String(course.id),
                     )}

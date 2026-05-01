@@ -21,6 +21,7 @@ interface CourseCardProps {
   isEnrolled?: boolean;
   hasCertificate?: boolean;
   isUnlocked?: boolean;
+  isOwner?: boolean; // ✅ AJOUTÉ
   onEnroll?: () => void;
   onView: () => void;
   onEdit?: () => void;
@@ -34,6 +35,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   isEnrolled = false,
   hasCertificate = false,
   isUnlocked = false,
+  isOwner = false, // ✅ AJOUTÉ
   onEnroll,
   onView,
   onEdit,
@@ -83,7 +85,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                     shadow-lg shadow-green-900/30 border border-green-400/30"
                 >
                   <Unlock className="w-3 h-3" />
-                  <span>Débloquée</span>
+                  <span>Décodée</span>
                 </div>
               ) : (
                 <div
@@ -92,7 +94,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                     shadow-lg shadow-purple-900/30 border border-purple-400/30"
                 >
                   <Lock className="w-3 h-3" />
-                  <span>Bloquée</span>
+                  <span>Codée</span>
                 </div>
               )}
             </div>
@@ -253,19 +255,48 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             whileTap={{ scale: 0.95 }}
             className="w-full"
           >
-            {progress !== undefined ? (
-              <Button onClick={onView} className="w-full">
-                {hasCertificate ? "Revoir le cours" : "Continuer le cours"}
-              </Button>
-            ) : (
-              <Button
-                onClick={onEnroll || onView}
-                variant="outline"
-                className="w-full"
-              >
-                Voir le cours
-              </Button>
-            )}
+            {(() => {
+              // ✅ Créateur de la formation → "Voir le cours" (même si formation codée non débloquée)
+              if (course.is_coded && isOwner) {
+                return (
+                  <Button onClick={onView} className="w-full">
+                    Voir le cours
+                  </Button>
+                );
+              }
+
+              // ✅ Formation codée NON débloquée ET utilisateur non créateur
+              if (course.is_coded && !isUnlocked && !isOwner) {
+                return (
+                  <Button
+                    onClick={onEnroll || onView}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md"
+                  >
+                    <Lock className="w-4 h-4 mr-2" />
+                    Essai de l'obtenir
+                  </Button>
+                );
+              }
+
+              // ✅ Formation normale ou débloquée → comportement standard
+              if (progress !== undefined) {
+                return (
+                  <Button onClick={onView} className="w-full">
+                    {hasCertificate ? "Revoir le cours" : "Continuer le cours"}
+                  </Button>
+                );
+              }
+
+              return (
+                <Button
+                  onClick={onEnroll || onView}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Voir le cours
+                </Button>
+              );
+            })()}
           </motion.div>
         </CardFooter>
       </Card>

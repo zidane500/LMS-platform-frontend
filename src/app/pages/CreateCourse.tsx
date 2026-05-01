@@ -105,12 +105,12 @@ export const CreateCourse: React.FC = () => {
 
     const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
 
-    // Garantir au moins 1 de chaque type
+    // 1 maj + 1 min + 1 chiffre + 1 spécial + 4 aléatoires = 8 caractères
     const mandatory = [pick(upper), pick(lower), pick(digits), pick(specials)];
-    const rest = Array.from({ length: 8 }, () => pick(all));
+    const rest = Array.from({ length: 4 }, () => pick(all)); // ← 4 au lieu de 8
     const combined = [...mandatory, ...rest];
 
-    // Mélanger (Fisher-Yates)
+    // Mélanger
     for (let i = combined.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [combined[i], combined[j]] = [combined[j], combined[i]];
@@ -164,8 +164,8 @@ export const CreateCourse: React.FC = () => {
       toast.error("La durée doit être au moins 1 heure");
       return;
     }
-    if (isCoded && (code.length < 8 || code.length > 12)) {
-      toast.error("Le code doit contenir entre 8 et 12 caractères");
+    if (isCoded && code.length !== 8) {
+      toast.error("Le code doit contenir exactement 8 caractères");
       return;
     }
 
@@ -532,7 +532,6 @@ export const CreateCourse: React.FC = () => {
                         <RefreshCw className="w-4 h-4" /> Générer
                       </Button>
                     </div>
-                    
                   </div>
 
                   {/* Formations prérequises */}

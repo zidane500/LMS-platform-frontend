@@ -600,6 +600,10 @@ export const Dashboard: React.FC = () => {
                                   !course.is_coded ||
                                   (course as any).aAcces === true
                                 }
+                                isOwner={
+                                  currentUser?.id ===
+                                  (course as any).instructorId
+                                }
                                 hasCertificate={certificatFormationIds.includes(
                                   String(course.id),
                                 )}
