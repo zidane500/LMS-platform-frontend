@@ -140,9 +140,7 @@ export const AdminCharts: React.FC = () => {
 
   // ── Données Bar ───────────────────────────────────────
   const barData = {
-    labels: topFormations.map((f) =>
-      f.titre.length > 25 ? f.titre.slice(0, 25) + "…" : f.titre,
-    ),
+    labels: topFormations.map((f) => f.titre),
     datasets: [
       {
         label: "Inscriptions",
@@ -172,7 +170,11 @@ export const AdminCharts: React.FC = () => {
       },
       tooltip: {
         callbacks: {
-          label: (ctx: any) =>
+          title: (items: any[]): string => {
+            const idx = items[0].dataIndex;
+            return topFormations[idx]?.titre ?? "";
+          },
+          label: (ctx: any): string =>
             ` ${ctx.parsed.x} inscription${ctx.parsed.x > 1 ? "s" : ""}`,
         },
       },

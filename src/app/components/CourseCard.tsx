@@ -8,6 +8,7 @@ import {
   Trash2,
   Lock,
   Unlock,
+  CheckCircle, // ✅ Fix 3 — ajout
 } from "lucide-react";
 import { Course } from "../types";
 import { Card, CardContent, CardFooter } from "./ui/card";
@@ -21,7 +22,8 @@ interface CourseCardProps {
   isEnrolled?: boolean;
   hasCertificate?: boolean;
   isUnlocked?: boolean;
-  isOwner?: boolean; // ✅ AJOUTÉ
+  isOwner?: boolean;
+  isCompleted?: boolean; // ✅ Fix 3 — nouvelle prop
   onEnroll?: () => void;
   onView: () => void;
   onEdit?: () => void;
@@ -35,7 +37,8 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   isEnrolled = false,
   hasCertificate = false,
   isUnlocked = false,
-  isOwner = false, // ✅ AJOUTÉ
+  isOwner = false,
+  isCompleted = false, // ✅ Fix 3
   onEnroll,
   onView,
   onEdit,
@@ -50,6 +53,9 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     Avancé:
       "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
   };
+
+  // ✅ Fix 3 — terminée = hasCertificate OU (progress 100% + isCompleted)
+  const showTerminee = hasCertificate || isCompleted || progress === 100;
 
   return (
     <motion.div
@@ -75,7 +81,21 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             }}
           />
 
-          {/* 🔐 Icône formation codée */}
+          {/* ✅ Fix 3 — Badge "Terminée" en bas à droite */}
+          {showTerminee && (
+            <div className="absolute bottom-2 right-2 z-10">
+              <div
+                className="flex items-center gap-1.5 bg-green-600/90 backdrop-blur-sm
+                  text-white text-xs font-semibold px-2.5 py-1.5 rounded-full
+                  shadow-lg shadow-green-900/30 border border-green-400/30"
+              >
+                <CheckCircle className="w-3 h-3" />
+                <span>Terminée</span>
+              </div>
+            </div>
+          )}
+
+          {/* 🔐 Icône formation codée — en haut à droite */}
           {course.is_coded && (
             <div className="absolute top-2 right-2 z-10">
               {isUnlocked ? (
@@ -180,7 +200,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             )}
           </div>
 
-          {/* Formations prérequises */}
           {course.is_coded &&
             course.prerequis_formations &&
             course.prerequis_formations.length > 0 && (
@@ -194,19 +213,16 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                     <span
                       key={p.id}
                       className="text-xs px-2 py-0.5 rounded-full
-                               bg-purple-50 text-purple-700 border border-purple-200
-                               dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-700
-                               truncate max-w-[120px]"
+                             bg-purple-50 text-purple-700 border border-purple-200
+                             dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-700
+                             truncate max-w-[120px]"
                       title={p.titre}
                     >
                       {p.titre}
                     </span>
                   ))}
                   {course.prerequis_formations.length > 2 && (
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full
-                                   bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400"
-                    >
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">
                       +{course.prerequis_formations.length - 2}
                     </span>
                   )}
@@ -220,18 +236,18 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           {hasCertificate && (
             <span
               className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full
-                     font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
-                     border border-yellow-200 dark:border-yellow-800 self-center"
+                   font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
+                   border border-yellow-200 dark:border-yellow-800 self-center"
             >
               🎓 Formation terminée
             </span>
           )}
 
-          {isEnrolled && (
+          {isEnrolled && !hasCertificate && (
             <span
               className="inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1 rounded-full
-                     font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
-                     border border-green-200 dark:border-green-800 self-center"
+                   font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                   border border-green-200 dark:border-green-800 self-center"
             >
               <svg
                 className="w-3 h-3"
@@ -256,7 +272,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             className="w-full"
           >
             {(() => {
-              // ✅ Créateur de la formation → "Voir le cours" (même si formation codée non débloquée)
               if (course.is_coded && isOwner) {
                 return (
                   <Button onClick={onView} className="w-full">
@@ -264,8 +279,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                   </Button>
                 );
               }
-
-              // ✅ Formation codée NON débloquée ET utilisateur non créateur
               if (course.is_coded && !isUnlocked && !isOwner) {
                 return (
                   <Button
@@ -277,8 +290,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                   </Button>
                 );
               }
-
-              // ✅ Formation normale ou débloquée → comportement standard
               if (progress !== undefined) {
                 return (
                   <Button onClick={onView} className="w-full">
@@ -286,7 +297,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                   </Button>
                 );
               }
-
               return (
                 <Button
                   onClick={onEnroll || onView}

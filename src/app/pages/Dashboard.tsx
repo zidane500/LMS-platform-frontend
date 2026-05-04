@@ -38,6 +38,7 @@ import { AdminCharts } from "../components/AdminCharts";
 import { LearningTimeChart } from "../components/LearningTimeChart";
 import { AdminChartsExtra } from "../components/AdminChartsExtra";
 import { getCertificats } from "../services/certificatService";
+import { useUnlockedFormations } from "../hooks/useUnlockedFormations";
 import api from "../services/api";
 
 export const Dashboard: React.FC = () => {
@@ -59,6 +60,8 @@ export const Dashboard: React.FC = () => {
   const [certificatFormationIds, setCertificatFormationIds] = useState<
     string[]
   >([]);
+
+  const { checkUnlocked } = useUnlockedFormations();
 
   // ── Admin ─────────────────────────────────────────────────
   const [adminFormations, setAdminFormations] = useState<any[]>([]);
@@ -137,11 +140,20 @@ export const Dashboard: React.FC = () => {
         ]);
 
         const toutesFormations = [...publieesData, ...brouillonsData];
-        setAdminFormations(toutesFormations);
 
-        // Progression uniquement sur les publiées
+        // ✅ Ne garder que les formations créées par l'admin connecté
+        const mesFormations = toutesFormations.filter(
+          (f: any) => String(f.instructorId) === String(currentUser?.id),
+        );
+
+        setAdminFormations(mesFormations);
+
+        // Progression uniquement sur MES publiées
+        const mesPubliees = mesFormations.filter(
+          (f: any) => f.statut === "publie",
+        );
         const progressData = await Promise.all(
-          publieesData.slice(0, 5).map(async (f) => {
+          mesPubliees.map(async (f) => {
             try {
               const data = await getProgressionFormateur(f.id);
               const taux =
@@ -196,6 +208,24 @@ export const Dashboard: React.FC = () => {
   const brouillons = adminFormations.filter(
     (f: any) => f.statut === "brouillon",
   ).length;
+
+  // ── Catégories uniques pour le filtre ─────────────────────
+  const categories = Array.from(
+    new Set(adminFormations.map((f: any) => f.category).filter(Boolean)),
+  ).sort();
+
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+
+  // ── Progressions filtrées par catégorie ─────────────────
+  const filteredProgressions =
+    selectedCategory === "all"
+      ? adminProgressions
+      : adminProgressions.filter((p) => {
+          const formation = adminFormations.find(
+            (f: any) => (f.title || f.titre) === p.formationTitre,
+          );
+          return formation?.category === selectedCategory;
+        });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-slate-950 dark:to-blue-950/30">
@@ -318,23 +348,46 @@ export const Dashboard: React.FC = () => {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-purple-600" />
-                    Progression des apprenants par formation
-                  </CardTitle>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-purple-600" />
+                      Progression des apprenants par formation
+                    </CardTitle>
+
+                    {/* ✅ Filtre par catégorie */}
+                    {categories.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          Catégorie :
+                        </span>
+                        <select
+                          value={selectedCategory}
+                          onChange={(e) => setSelectedCategory(e.target.value)}
+                          className="text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        >
+                          <option value="all">Toutes</option>
+                          {categories.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {adminLoading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
                     </div>
-                  ) : adminProgressions.length === 0 ? (
+                  ) : filteredProgressions.length === 0 ? (
                     <p className="text-center py-8 text-gray-500">
                       Aucune formation avec des apprenants inscrits
                     </p>
                   ) : (
                     <div className="space-y-4">
-                      {adminProgressions.map((p, i) => (
+                      {filteredProgressions.map((p, i) => (
                         <div key={i} className="space-y-2">
                           <div className="flex justify-between items-center">
                             <div>
@@ -357,11 +410,6 @@ export const Dashboard: React.FC = () => {
                           <Progress value={p.taux} className="h-2" />
                         </div>
                       ))}
-                      {adminFormations.length > 5 && (
-                        <p className="text-xs text-gray-400 text-center pt-2">
-                          Affichage des 5 premières formations
-                        </p>
-                      )}
                     </div>
                   )}
                 </CardContent>
@@ -598,7 +646,8 @@ export const Dashboard: React.FC = () => {
                                 course={course}
                                 isUnlocked={
                                   !course.is_coded ||
-                                  (course as any).aAcces === true
+                                  (course as any).aAcces === true ||
+                                  checkUnlocked(String(course.id))
                                 }
                                 isOwner={
                                   currentUser?.id ===

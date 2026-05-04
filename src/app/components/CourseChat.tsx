@@ -48,6 +48,10 @@ interface Props {
   formationId: string;
   instructorName: string;
   instructorId: string;
+
+  open: boolean;
+  onClose: () => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡", "🔥", "🎉", "👏", "✅"];
@@ -56,9 +60,11 @@ export const CourseChat: React.FC<Props> = ({
   formationId,
   instructorName,
   instructorId,
+  open,
+  onClose,
 }) => {
   const { currentUser } = useAuth();
-  const [open, setOpen] = useState(false);
+
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,6 +97,14 @@ export const CourseChat: React.FC<Props> = ({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (open) {
+      document.body.classList.add("chat-open");
+    } else {
+      document.body.classList.remove("chat-open");
+    }
+  }, [open]);
 
   const handleSend = async (file?: File) => {
     if ((!input.trim() && !file) || sending) return;
@@ -180,24 +194,16 @@ export const CourseChat: React.FC<Props> = ({
 
   return (
     <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-blue-500/30
-                   bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition-colors text-sm"
-      >
-        <MessageCircle className="w-4 h-4" />
-        <span>Discussion</span>
-      </button>
-
       <AnimatePresence>
         {open && (
           <motion.div
+            data-chat-open="true"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="fixed bottom-24 right-6 z-50 w-[400px] max-w-[95vw] flex flex-col
-                       bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden"
-            style={{ height: "520px" }}
+            className="fixed z-50 flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden
+             inset-0 w-full h-full rounded-none
+             sm:inset-auto sm:bottom-24 sm:right-6 sm:w-[400px] sm:max-w-[95vw] sm:h-[520px] sm:rounded-2xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-800/80">
@@ -216,7 +222,7 @@ export const CourseChat: React.FC<Props> = ({
                 </div>
               </div>
               <button
-                onClick={() => setOpen(false)}
+                onClick={onClose}
                 className="text-slate-500 hover:text-white"
               >
                 <X className="w-4 h-4" />

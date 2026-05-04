@@ -1,14 +1,16 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Flag, X, Send, Loader2, Paperclip, Image, Film } from "lucide-react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { toast } from "sonner";
+
 import api from "../services/api";
 
 export const ReportWidget: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [resume, setResume] = useState(""); // ✅ NOUVEAU — Résumé 100 chars
+  const [resume, setResume] = useState("");
+  const [chatOpen, setChatOpen] = useState(false); // ✅ NOUVEAU — Résumé 100 chars
   const [message, setMessage] = useState("");
   const [fichiers, setFichiers] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
@@ -66,13 +68,43 @@ export const ReportWidget: React.FC = () => {
       <Image className="w-3.5 h-3.5 text-green-500" />
     );
 
+  // ✅ Détecter si un chat est ouvert (CourseChat ou autre)
+  useEffect(() => {
+    const checkChat = () => {
+      const chatExists =
+        document.querySelector('[data-chat-open="true"]') !== null;
+      setChatOpen(chatExists);
+    };
+
+    // Vérifier au montage et toutes les 300ms
+    checkChat();
+    const interval = setInterval(checkChat, 300);
+
+    // Observer les changements DOM
+    const observer = new MutationObserver(checkChat);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <>
       <motion.button
+        drag
+        dragMomentum={true}
+        dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+        dragElastic={0}
         whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
+        whileTap={{ scale: 0.95, cursor: "grabbing" }}
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow"
+        className={`fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-lg flex items-center justify-center hover:shadow-xl transition-all duration-300 touch-none select-none ${
+          chatOpen
+            ? "opacity-0 scale-0 pointer-events-none"
+            : "opacity-100 scale-100"
+        }`}
         title="Signaler un problème"
       >
         <Flag className="w-5 h-5" />

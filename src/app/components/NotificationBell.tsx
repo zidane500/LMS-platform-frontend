@@ -192,18 +192,18 @@ export const NotificationBell: React.FC = () => {
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            className="absolute right-0 top-12 w-[420px] max-w-[95vw] z-50 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-visible"
+            className="absolute right-0 top-12 w-[340px] sm:w-[420px] max-w-[92vw] z-50 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden"
           >
-            <div className="relative flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700">
-              <span className="font-semibold text-sm dark:text-white">
-                🔔 Notifications
+            <div className="relative flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-200 dark:border-slate-700 gap-2">
+              <span className="font-semibold text-xs sm:text-sm dark:text-white shrink-0">
+                🔔 <span className="hidden sm:inline">Notifications</span>
               </span>
 
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-[120px]">
                 <div className="relative">
                   <button
                     onClick={() => setShowFilter((prev) => !prev)}
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700 whitespace-nowrap"
+                    className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 truncate"
                   >
                     {activeFilterLabel
                       ? `Filtre: ${activeFilterLabel}`
@@ -212,7 +212,7 @@ export const NotificationBell: React.FC = () => {
                   </button>
 
                   {showFilter && (
-                    <div className="absolute left-1/2 top-full mt-3 -translate-x-1/2 w-35 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[80] overflow-hidden">
+                    <div className="absolute left-1/2 top-full mt-3 -translate-x-1/2 w-32 sm:w-36 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[80] overflow-hidden">
                       {filterOptions.map((option) => (
                         <button
                           key={option.value}
@@ -285,7 +285,7 @@ export const NotificationBell: React.FC = () => {
                   return (
                     <div
                       key={notif.id}
-                      className={`flex items-start gap-3 px-4 py-3 border-b border-gray-100 dark:border-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer overflow-hidden ${getTypeBg(
+                      className={`flex items-start gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-100 dark:border-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer overflow-hidden ${getTypeBg(
                         notif.type,
                         !notif.lu,
                       )}`}
@@ -303,7 +303,7 @@ export const NotificationBell: React.FC = () => {
                         </span>
 
                         <p
-                          className={`text-sm leading-snug mt-0.5 whitespace-pre-line break-words overflow-hidden ${
+                          className={`text-xs sm:text-sm leading-snug mt-0.5 whitespace-pre-line break-words overflow-hidden ${
                             !notif.lu
                               ? "font-medium dark:text-white"
                               : "text-gray-600 dark:text-gray-400"

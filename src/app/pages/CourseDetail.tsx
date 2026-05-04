@@ -63,6 +63,8 @@ export const CourseDetail: React.FC = () => {
   const { currentUser } = useAuth();
   const { markUnlocked } = useUnlockedFormations();
 
+  const [chatOpen, setChatOpen] = useState(false);
+
   const [course, setCourse] = useState<
     (Course & { isEnrolled?: boolean }) | null
   >(null);
@@ -583,14 +585,25 @@ export const CourseDetail: React.FC = () => {
                         {(course as any).instructor.lastName}
                       </span>
                     </div>
-                    {/* Chat - seulement si ce n'est pas le créateur */}
+
+                    {/* ✅ BOUTON DISCUSSION */}
                     {!isOwnerInstructor && !isOwner && (
-                      <CourseChat
-                        formationId={courseId!}
-                        instructorName={`${(course as any).instructor.firstName} ${(course as any).instructor.lastName}`}
-                        instructorId={String((course as any).instructorId)}
-                      />
+                      <button
+                        onClick={() => setChatOpen(true)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-300 hover:bg-blue-500/20 transition"
+                      >
+                        💬 Discussion
+                      </button>
                     )}
+
+                    {/* ✅ CHAT */}
+                    <CourseChat
+                      formationId={courseId!}
+                      instructorName={`${(course as any).instructor.firstName} ${(course as any).instructor.lastName}`}
+                      instructorId={String((course as any).instructorId)}
+                      open={chatOpen}
+                      onClose={() => setChatOpen(false)}
+                    />
                   </>
                 )}
               </div>

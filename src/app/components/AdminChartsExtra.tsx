@@ -105,9 +105,7 @@ const CriticalFormationsChart: React.FC<{ data: FormationAttention[] }> = ({
   return (
     <Bar
       data={{
-        labels: top.map((f) =>
-          f.titre.length > 20 ? f.titre.slice(0, 20) + "…" : f.titre,
-        ),
+        labels: top.map((f) => f.titre),
         datasets: [
           {
             label: "Score d'alerte",
@@ -124,6 +122,10 @@ const CriticalFormationsChart: React.FC<{ data: FormationAttention[] }> = ({
           legend: { display: false },
           tooltip: {
             callbacks: {
+              title: (items: any[]) => {
+                const idx = items[0].dataIndex;
+                return top[idx]?.titre ?? "";
+              },
               label: (ctx: any) => {
                 const f = top[ctx.dataIndex];
                 return [
@@ -342,9 +344,7 @@ const CertificationsDetailees: React.FC = () => {
 
   // Données du graphique : inscriptions vs certifications
   const formations = data?.formations ?? [];
-  const chartLabels = formations.map((f) =>
-    f.titre.length > 18 ? f.titre.slice(0, 18) + "…" : f.titre,
-  );
+  const chartLabels = formations.map((f) => f.titre);
   const chartInscrits = formations.map((f) => f.nb_inscrits);
   const chartCertifs = formations.map((f) => f.nb_certifs);
 
@@ -383,6 +383,10 @@ const CertificationsDetailees: React.FC = () => {
       },
       tooltip: {
         callbacks: {
+          title: (items: any[]) => {
+            const idx = items[0].dataIndex;
+            return formations[idx]?.titre ?? "";
+          },
           afterLabel: (ctx: any) => {
             const f = formations[ctx.dataIndex];
             return f ? `Taux : ${f.taux}%` : "";
@@ -625,9 +629,7 @@ export const AdminChartsExtra: React.FC = () => {
 
   // ── Bar catégories ────────────────────────────────────────────
   const catBarData = {
-    labels: displayedCategories.map((c) =>
-      c.categorie.length > 18 ? c.categorie.slice(0, 18) + "…" : c.categorie,
-    ),
+    labels: displayedCategories.map((c) => c.categorie),
     datasets: [
       {
         label: "Progression moyenne (%)",
@@ -662,6 +664,10 @@ export const AdminChartsExtra: React.FC = () => {
       },
       tooltip: {
         callbacks: {
+          title: (items: any[]) => {
+            const idx = items[0].dataIndex;
+            return displayedCategories[idx]?.categorie ?? "";
+          },
           label: (ctx: any) => {
             const cat = displayedCategories[ctx.dataIndex];
             return [
@@ -690,9 +696,7 @@ export const AdminChartsExtra: React.FC = () => {
 
   // ── Bar IA ────────────────────────────────────────────────────
   const iaBarData = {
-    labels: (iaStats?.par_formation ?? []).map((f) =>
-      f.titre.length > 20 ? f.titre.slice(0, 20) + "…" : f.titre,
-    ),
+    labels: (iaStats?.par_formation ?? []).map((f) => f.titre),
     datasets: [
       {
         label: "Score moyen IA (%)",
@@ -722,6 +726,15 @@ export const AdminChartsExtra: React.FC = () => {
         color: titleColor,
         font: { size: 13 },
         padding: { bottom: 10 },
+      },
+      tooltip: {
+        callbacks: {
+          title: (items: any[]): string => {
+            const idx = items[0].dataIndex;
+            const formations = iaStats?.par_formation ?? [];
+            return formations[idx]?.titre ?? "";
+          },
+        },
       },
     },
     scales: {

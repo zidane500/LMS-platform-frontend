@@ -53,7 +53,9 @@ export const Courses: React.FC = () => {
   const [selectedInstructor, setSelectedInstructor] = useState("all");
   const [showMine, setShowMine] = useState(false);
   // ✅ Fix 5 — Filtre formations codées
-  const [filtreCode, setFiltreCode] = useState(false);
+  const [filtreType, setFiltreType] = useState<"all" | "normale" | "codee">(
+    "all",
+  );
 
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -76,7 +78,7 @@ export const Courses: React.FC = () => {
         formateur_id:
           selectedInstructor !== "all" ? selectedInstructor : undefined,
         // ✅ Fix 5 — passer le filtre is_coded
-        is_coded: filtreCode ? true : undefined,
+        is_coded: filtreType === "codee" ? true : undefined,
       });
       setCourses(data);
     } catch {
@@ -91,7 +93,7 @@ export const Courses: React.FC = () => {
     showMine,
     selectedStatut,
     selectedInstructor,
-    filtreCode,
+    filtreType,
   ]);
 
   useEffect(() => {
@@ -107,6 +109,9 @@ export const Courses: React.FC = () => {
     const t = setTimeout(() => loadCourses(), searchQuery ? 400 : 0);
     return () => clearTimeout(t);
   }, [loadCourses]);
+
+  const displayedCourses =
+    filtreType === "normale" ? courses.filter((c) => !c.is_coded) : courses;
 
   const handleDeleteCourse = async () => {
     if (!courseToDelete) return;
@@ -142,12 +147,7 @@ export const Courses: React.FC = () => {
               <BookOpen className="w-8 h-8 text-blue-600" /> Formations
             </h1>
             <p className="text-gray-500 mt-1">
-              {courses.length} formation(s) trouvée(s)
-              {filtreCode && (
-                <span className="ml-2 inline-flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
-                  <Lock className="w-3 h-3" /> Codées uniquement
-                </span>
-              )}
+              {displayedCourses.length} formation(s) trouvée(s)
             </p>
           </div>
           <div className="flex gap-3">
@@ -173,7 +173,7 @@ export const Courses: React.FC = () => {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher par titre ou description..."
+              placeholder="Rechercher..."
               className="pl-10"
             />
           </div>
@@ -252,38 +252,48 @@ export const Courses: React.FC = () => {
             </Button>
           )}
 
-          {/* ✅ Fix 5 — Bouton filtre formations codées */}
-          <button
-            onClick={() => setFiltreCode(!filtreCode)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-              filtreCode
-                ? "bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/25"
-                : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-purple-400"
-            }`}
+          {/* ✅ REMPLACE UNIQUEMENT LE BOUTON "Codées" */}
+          <Select
+            value={filtreType}
+            onValueChange={(v) =>
+              setFiltreType(v as "all" | "normale" | "codee")
+            }
           >
-            <Lock className="w-4 h-4" />
-            Codées
-            {filtreCode && (
-              <span className="ml-1 w-2 h-2 rounded-full bg-white/70 inline-block" />
-            )}
-          </button>
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Type de formation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les formations</SelectItem>
+              <SelectItem value="normale">
+                <span className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-blue-500" />
+                  Formation normale
+                </span>
+              </SelectItem>
+              <SelectItem value="codee">
+                <span className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-purple-500" />
+                  Formation codée
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-
         {/* ── Grille de formations ── */}
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : courses.length === 0 ? (
+        ) : displayedCourses.length === 0 ? (
           <div className="text-center py-16">
             <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-xl font-semibold text-gray-500">
-              {filtreCode
+              {filtreType === "codee"
                 ? "Aucune formation codée trouvée"
                 : "Aucune formation trouvée"}
             </p>
             <p className="text-gray-400 mt-1">
-              {filtreCode
+              {filtreType === "codee"
                 ? "Il n'existe pas encore de formations codées correspondantes"
                 : "Essayez de modifier vos filtres de recherche"}
             </p>
@@ -291,7 +301,7 @@ export const Courses: React.FC = () => {
         ) : (
           <AnimatePresence>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {courses.map((course, i) => (
+              {displayedCourses.map((course, i) => (
                 <motion.div
                   key={course.id}
                   initial={{ opacity: 0, y: 20 }}
