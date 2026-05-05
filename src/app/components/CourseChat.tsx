@@ -49,7 +49,7 @@ interface Props {
   formationId: string;
   instructorName: string;
   instructorId: string;
-
+  learnerId?: string;
   open: boolean;
   onClose: () => void;
   onOpenChange?: (open: boolean) => void;
@@ -61,6 +61,7 @@ export const CourseChat: React.FC<Props> = ({
   formationId,
   instructorName,
   instructorId,
+  learnerId,
   open,
   onClose,
 }) => {
@@ -110,15 +111,21 @@ export const CourseChat: React.FC<Props> = ({
   useEffect(() => {
     if (!open || !currentUser) return;
 
-    const myId = currentUser.id;
-    const otherId = instructorId;
+    const myId = String(currentUser.id);
+    const isInstructor = String(currentUser.id) === String(instructorId);
+
+    // Déterminer l'autre participant
+    const otherId = isInstructor
+      ? learnerId || String(instructorId) // Si formateur, utiliser learnerId passé
+      : String(instructorId); // Si apprenant, l'autre c'est le formateur
+
     const participants = [myId, otherId].sort();
     const channelName = `conversation.${formationId}.${participants[0]}.${participants[1]}`;
 
     const channel = echo.private(channelName);
     channel.listen(".message.sent", (data: any) => {
       // Évite d'ajouter deux fois le message si c'est l'utilisateur courant
-      if (data.message.sender.id !== currentUser.id) {
+      if (String(data.message.sender.id) !== String(currentUser.id)) {
         setMessages((prev) => [...prev, data.message]);
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
       }
@@ -128,7 +135,7 @@ export const CourseChat: React.FC<Props> = ({
       channel.stopListening(".message.sent");
       echo.leaveChannel(channelName);
     };
-  }, [open, formationId, instructorId, currentUser]);
+  }, [open, formationId, instructorId, learnerId, currentUser]);
 
   const handleSend = async (file?: File) => {
     if ((!input.trim() && !file) || sending) return;

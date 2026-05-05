@@ -601,6 +601,7 @@ export const CourseDetail: React.FC = () => {
                       formationId={courseId!}
                       instructorName={`${(course as any).instructor.firstName} ${(course as any).instructor.lastName}`}
                       instructorId={String((course as any).instructorId)}
+                      learnerId={String(currentUser?.id)}
                       open={chatOpen}
                       onClose={() => setChatOpen(false)}
                     />

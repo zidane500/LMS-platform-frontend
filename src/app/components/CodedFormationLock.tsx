@@ -339,7 +339,7 @@ export const CodedFormationLock: React.FC<Props> = ({
                        transition-colors"
           />
           <p className="text-xs text-center text-gray-400 dark:text-slate-500">
-            {code.length}/8 caractères minimum
+            {code.length}/8 caractères
           </p>
         </div>
 

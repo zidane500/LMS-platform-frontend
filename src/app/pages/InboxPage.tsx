@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import echo from "../services/echo";
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡", "🔥", "🎉", "👏", "✅"];
 
@@ -143,6 +144,40 @@ export const InboxPage: React.FC = () => {
       setMsgLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (
+      view !== "conversation" ||
+      !activeFormation ||
+      !activeSender ||
+      !currentUser
+    ) {
+      return;
+    }
+
+    const formatorId = String(currentUser.id);
+    const senderId = String(activeSender.user_id);
+    const participants = [formatorId, senderId].sort();
+    const channelName = `conversation.${activeFormation.formation_id}.${participants[0]}.${participants[1]}`;
+
+    console.log("📡 WebSocket subscription:", channelName); // Debug
+
+    const channel = echo.private(channelName);
+
+    channel.listen(".message.sent", (data: any) => {
+      // N'ajouter que les messages de l'autre participant
+      if (String(data.message.sender.id) !== String(currentUser.id)) {
+        console.log("📨 Nouveau message reçu:", data.message); // Debug
+        setMessages((prev) => [...prev, data.message]);
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+
+    return () => {
+      channel.stopListening(".message.sent");
+      echo.leaveChannel(channelName);
+    };
+  }, [view, activeFormation, activeSender, currentUser, open]);
 
   const handleSend = async (file?: File) => {
     if (
