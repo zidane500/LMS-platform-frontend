@@ -15,6 +15,7 @@ import {
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import echo from "../services/echo";
 
 // ─── Types ───────────────────────────────────────────────
 interface Reaction {
@@ -105,6 +106,29 @@ export const CourseChat: React.FC<Props> = ({
       document.body.classList.remove("chat-open");
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !currentUser) return;
+
+    const myId = currentUser.id;
+    const otherId = instructorId;
+    const participants = [myId, otherId].sort();
+    const channelName = `conversation.${formationId}.${participants[0]}.${participants[1]}`;
+
+    const channel = echo.private(channelName);
+    channel.listen(".message.sent", (data: any) => {
+      // Évite d'ajouter deux fois le message si c'est l'utilisateur courant
+      if (data.message.sender.id !== currentUser.id) {
+        setMessages((prev) => [...prev, data.message]);
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+
+    return () => {
+      channel.stopListening(".message.sent");
+      echo.leaveChannel(channelName);
+    };
+  }, [open, formationId, instructorId, currentUser]);
 
   const handleSend = async (file?: File) => {
     if ((!input.trim() && !file) || sending) return;
