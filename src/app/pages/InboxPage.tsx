@@ -17,10 +17,13 @@ import {
   Trash2,
   X,
   ChevronLeft,
+  Phone,
+  Video,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import echo from "../services/echo";
+import { useCall } from "../context/CallContext";
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡", "🔥", "🎉", "👏", "✅"];
 
@@ -67,6 +70,7 @@ interface Msg {
 export const InboxPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { initiateCall, callState } = useCall();
 
   const [view, setView] = useState<"list" | "conversation">("list");
   const [items, setItems] = useState<InboxItem[]>([]);
@@ -90,17 +94,63 @@ export const InboxPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
+  const refreshInbox = async () => {
+    try {
+      const res = await api.get("/messages/inbox");
+      setItems(res.data);
+    } catch (error: any) {
+      console.error(
+        "[Inbox] Erreur chargement inbox:",
+        error.response?.data || error,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    api
-      .get("/messages/inbox")
-      .then((res) => setItems(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    refreshInbox();
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!currentUser || items.length === 0) return;
+
+    const subscribedChannels: string[] = [];
+
+    items.forEach((formation) => {
+      formation.senders.forEach((sender) => {
+        const participants = [
+          String(currentUser.id),
+          String(sender.user_id),
+        ].sort();
+        const channelName = `conversation.${formation.formation_id}.${participants[0]}.${participants[1]}`;
+
+        if (subscribedChannels.includes(channelName)) return;
+
+        subscribedChannels.push(channelName);
+
+        const channel = echo.private(channelName);
+
+        channel.listen(".message.sent", (data: any) => {
+          console.log("📩 Nouveau message inbox reçu:", data.message);
+
+          if (String(data.message.sender.id) !== String(currentUser.id)) {
+            refreshInbox();
+          }
+        });
+      });
+    });
+
+    return () => {
+      subscribedChannels.forEach((channelName) => {
+        echo.leaveChannel(channelName);
+      });
+    };
+  }, [currentUser?.id, items.length]);
 
   if (
     !currentUser ||
@@ -177,7 +227,7 @@ export const InboxPage: React.FC = () => {
       channel.stopListening(".message.sent");
       echo.leaveChannel(channelName);
     };
-  }, [view, activeFormation, activeSender, currentUser, open]);
+  }, [view, activeFormation, activeSender, currentUser]);
 
   const handleSend = async (file?: File) => {
     if (
@@ -421,7 +471,7 @@ export const InboxPage: React.FC = () => {
                       Formation : {item.formation_titre}
                     </p>
                     {item.nb_non_lus_total > 0 && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-500 text-white shrink-0">
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-red-500 text-white shrink-0">
                         {item.nb_non_lus_total}
                       </span>
                     )}
@@ -458,7 +508,7 @@ export const InboxPage: React.FC = () => {
                           </div>
                           {sender.nb_non_lus > 0 && (
                             <span
-                              className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white
+                              className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white
                                            text-[9px] font-bold rounded-full flex items-center justify-center"
                             >
                               {sender.nb_non_lus > 9 ? "9+" : sender.nb_non_lus}
@@ -488,30 +538,6 @@ export const InboxPage: React.FC = () => {
                           <span className="text-[10px] text-gray-400 dark:text-slate-600">
                             {sender.dernier_message.created_at}
                           </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleBlock(
-                                item.formation_id,
-                                sender.user_id,
-                                sender.is_blocked,
-                              );
-                            }}
-                            disabled={
-                              toggling ===
-                              `${item.formation_id}-${sender.user_id}`
-                            }
-                            className={`p-1 rounded-full transition-colors ${sender.is_blocked ? "text-green-500 hover:bg-green-100 dark:hover:bg-green-900/20" : "text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"}`}
-                          >
-                            {toggling ===
-                            `${item.formation_id}-${sender.user_id}` ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : sender.is_blocked ? (
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            ) : (
-                              <Ban className="w-3.5 h-3.5" />
-                            )}
-                          </button>
                         </div>
                       </motion.div>
                     );
@@ -576,6 +602,43 @@ export const InboxPage: React.FC = () => {
                     Formation : {activeFormation?.formation_titre}
                   </p>
                 </div>
+                {/* Boutons appel */}
+                <button
+                  onClick={() =>
+                    activeSender &&
+                    activeFormation &&
+                    initiateCall({
+                      formationId: activeFormation.formation_id,
+                      recipientId: activeSender.user_id,
+                      recipientNom: activeSender.nom,
+                      type: "voice",
+                    })
+                  }
+                  disabled={callState !== "idle"}
+                  className="p-2 rounded-full text-gray-400 hover:text-green-500 hover:bg-gray-100 dark:hover:bg-slate-800 transition disabled:opacity-30"
+                  title="Appel vocal"
+                >
+                  <Phone className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() =>
+                    activeSender &&
+                    activeFormation &&
+                    initiateCall({
+                      formationId: activeFormation.formation_id,
+                      recipientId: activeSender.user_id,
+                      recipientNom: activeSender.nom,
+                      type: "video",
+                    })
+                  }
+                  disabled={callState !== "idle"}
+                  className="p-2 rounded-full text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-slate-800 transition disabled:opacity-30"
+                  title="Appel vidéo"
+                >
+                  <Video className="w-4 h-4" />
+                </button>
+
+                {/* Bloquer/Débloquer existant */}
                 {activeSender.is_blocked ? (
                   <button
                     onClick={() =>
@@ -586,8 +649,8 @@ export const InboxPage: React.FC = () => {
                       )
                     }
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
-                               bg-green-50 border border-green-200 text-green-700
-                               dark:bg-green-900/20 dark:border-green-800 dark:text-green-400"
+               bg-green-50 border border-green-200 text-green-700
+               dark:bg-green-900/20 dark:border-green-800 dark:text-green-400"
                   >
                     <CheckCircle className="w-3.5 h-3.5" /> Débloquer
                   </button>
@@ -601,8 +664,8 @@ export const InboxPage: React.FC = () => {
                       )
                     }
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
-                               bg-red-50 border border-red-200 text-red-600
-                               dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+               bg-red-50 border border-red-200 text-red-600
+               dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
                   >
                     <Ban className="w-3.5 h-3.5" /> Bloquer
                   </button>
@@ -678,7 +741,7 @@ export const InboxPage: React.FC = () => {
                             msg.is_retracted
                               ? "italic text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800/50"
                               : me
-                                ? "bg-blue-500 text-white rounded-br-sm"
+                                ? "bg-red-500 text-white rounded-br-sm"
                                 : "bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 rounded-bl-sm"
                           }`}
                           >

@@ -1,6 +1,6 @@
 // src/app/components/CourseChat.tsx
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useDragControls } from "motion/react";
 import {
   MessageCircle,
   X,
@@ -11,11 +11,14 @@ import {
   CornerUpLeft,
   File,
   Trash2,
+  Phone,
+  Video,
 } from "lucide-react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import echo from "../services/echo";
+import { useCall } from "../context/CallContext";
 
 // ─── Types ───────────────────────────────────────────────
 interface Reaction {
@@ -66,6 +69,8 @@ export const CourseChat: React.FC<Props> = ({
   onClose,
 }) => {
   const { currentUser } = useAuth();
+  const { initiateCall, callState } = useCall();
+  const dragControls = useDragControls();
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -81,6 +86,19 @@ export const CourseChat: React.FC<Props> = ({
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
   const isMe = (id: string) => String(id) === String(currentUser?.id);
+
+  const isCurrentUserInstructor =
+    String(currentUser?.id) === String(instructorId);
+
+  const callRecipientId = isCurrentUserInstructor ? learnerId : instructorId;
+  const callRecipientNom = isCurrentUserInstructor
+    ? "Apprenant"
+    : instructorName;
+
+  const canStartCall =
+    !!callRecipientId &&
+    String(callRecipientId) !== String(currentUser?.id) &&
+    callState === "idle";
 
   const load = async () => {
     setLoading(true);
@@ -232,12 +250,20 @@ export const CourseChat: React.FC<Props> = ({
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            drag
+            dragControls={dragControls}
+            dragListener={false}
+            dragMomentum={false}
+            dragElastic={0}
             className="fixed z-50 flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden
-             inset-0 w-full h-full rounded-none
-             sm:inset-auto sm:bottom-24 sm:right-6 sm:w-[400px] sm:max-w-[95vw] sm:h-[520px] sm:rounded-2xl"
+   inset-0 w-full h-full rounded-none
+   sm:inset-auto sm:bottom-24 sm:right-6 sm:w-[400px] sm:max-w-[95vw] sm:h-[520px] sm:rounded-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-800/80">
+            <div
+              onPointerDown={(event) => dragControls.start(event)}
+              className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-800/80 cursor-move select-none"
+            >
               <div className="flex items-center gap-3">
                 <div
                   className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600
@@ -252,12 +278,51 @@ export const CourseChat: React.FC<Props> = ({
                   <p className="text-xs text-slate-500">Formateur</p>
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="text-slate-500 hover:text-white"
+              <div
+                className="flex items-center gap-1"
+                onPointerDown={(e) => e.stopPropagation()}
               >
-                <X className="w-4 h-4" />
-              </button>
+                <button
+                  onClick={() => {
+                    if (!callRecipientId) return;
+
+                    initiateCall({
+                      formationId,
+                      recipientId: callRecipientId,
+                      recipientNom: callRecipientNom,
+                      type: "voice",
+                    });
+                  }}
+                  disabled={!canStartCall}
+                  className="p-1.5 rounded-full text-slate-500 hover:text-green-400 hover:bg-white/10 transition disabled:opacity-30"
+                  title="Appel vocal"
+                >
+                  <Phone className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (!callRecipientId) return;
+
+                    initiateCall({
+                      formationId,
+                      recipientId: callRecipientId,
+                      recipientNom: callRecipientNom,
+                      type: "video",
+                    });
+                  }}
+                  disabled={!canStartCall}
+                  className="p-1.5 rounded-full text-slate-500 hover:text-blue-400 hover:bg-white/10 transition disabled:opacity-30"
+                  title="Appel vidéo"
+                >
+                  <Video className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="text-slate-500 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Messages */}
