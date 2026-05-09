@@ -741,7 +741,7 @@ export const InboxPage: React.FC = () => {
                             msg.is_retracted
                               ? "italic text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800/50"
                               : me
-                                ? "bg-red-500 text-white rounded-br-sm"
+                                ? "bg-blue-500 text-white rounded-br-sm"
                                 : "bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 rounded-bl-sm"
                           }`}
                           >
