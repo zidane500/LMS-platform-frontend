@@ -245,13 +245,6 @@ export function BadgeModal({ badge, onClose }: BadgeModalProps) {
                     </p>
                   </div>
                 </div>
-
-                {/* CTA */}
-                {isLocked && (
-                  <button className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-sm cursor-not-allowed">
-                    Badge verrouillé — Continuez votre progression !
-                  </button>
-                )}
               </div>
             </div>
           </motion.div>

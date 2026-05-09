@@ -40,6 +40,8 @@ const CATEGORIES: { id: BadgeCategory | "all"; label: string; icon: string }[] =
     { id: "performance", label: "Performance", icon: "🧠" },
     { id: "engagement", label: "Engagement", icon: "⏱️" },
     { id: "accomplissement", label: "Accomplissement", icon: "🏅" },
+    { id: "contenus", label: "Contenus", icon: "🧩" },
+    { id: "formateurs", label: "Formateurs", icon: "👨‍🏫" },
     { id: "niveaux", label: "Niveaux", icon: "📊" },
     { id: "speciaux", label: "Spéciaux", icon: "🌟" },
   ];

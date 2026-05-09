@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useLocation } from "react-router";
 import { getProgression } from "../services/progressionService";
 import { getQuiz } from "../services/quizService";
 import type { ProgressionFormation } from "../services/progressionService";
@@ -20,7 +20,6 @@ import {
   Lock,
   Edit,
   Award,
-  Star,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getFormation, enrollFormation } from "../services/formationService";
@@ -61,6 +60,10 @@ export const CourseDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id: courseId } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
+  const location = useLocation();
+
+  // ✅ true si la page est ouverte depuis /formations/:id
+  const isPublicCourseDetail = location.pathname.startsWith("/formations");
   const { markUnlocked } = useUnlockedFormations();
 
   const [chatOpen, setChatOpen] = useState(false);
@@ -73,8 +76,10 @@ export const CourseDetail: React.FC = () => {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isCoded, setIsCoded] = useState(false);
   const [aAcces, setAAcces] = useState(true);
-  const [checkingAcces, setCheckingAcces] = useState(true);
 
+  const [checkingAcces, setCheckingAcces] = useState(
+    !isPublicCourseDetail && !!currentUser, // ← false d'emblée sur page publique
+  );
   const [moduleContenus, setModuleContenus] = useState<
     Record<string, (Content & { progression?: any })[]>
   >({});
@@ -104,12 +109,14 @@ export const CourseDetail: React.FC = () => {
 
   // ── Rôles ─────────────────────────────────────────────────
   const isInstructorOrAdmin =
-    currentUser?.role === "instructor" || currentUser?.role === "admin";
+    !isPublicCourseDetail &&
+    (currentUser?.role === "instructor" || currentUser?.role === "admin");
   const isOwnerInstructor =
     isInstructorOrAdmin &&
     String((course as any)?.instructorId) === String(currentUser?.id);
   const canAccessForTracking =
-    isOwnerInstructor || currentUser?.role === "admin" || isEnrolled;
+    !!currentUser && // ← jamais actif si pas connecté
+    (isOwnerInstructor || currentUser?.role === "admin" || isEnrolled);
 
   useTimeTracking(courseId ?? "", Boolean(courseId && canAccessForTracking));
 
@@ -173,12 +180,16 @@ export const CourseDetail: React.FC = () => {
       .then(async (c) => {
         setCourse(c);
         const enrolled = (c as any).isEnrolled ?? false;
-        setIsEnrolled(enrolled);
+
+        // ✅ Sur la page publique, on force toujours false
+        const safeEnrolled = isPublicCourseDetail ? false : enrolled;
+        setIsEnrolled(safeEnrolled);
 
         if (
+          !isPublicCourseDetail &&
           (currentUser?.role === "learner" ||
             currentUser?.role === "instructor") &&
-          enrolled
+          safeEnrolled
         ) {
           const progression = await chargerProgression(courseId);
           const mods = c.modules ?? [];
@@ -198,27 +209,37 @@ export const CourseDetail: React.FC = () => {
         navigate("/app/courses");
       })
       .finally(() => setPageLoading(false));
-  }, [courseId, currentUser]);
+  }, [courseId, currentUser, isPublicCourseDetail]);
 
   useEffect(() => {
-    if (!courseId || !currentUser) return;
+    if (!courseId) return;
+
+    // ✅ Page publique : ne pas bloquer la page avec verifierAccesFormation
+    if (isPublicCourseDetail || !currentUser) {
+      setIsCoded(false);
+      setAAcces(false);
+      setCheckingAcces(false);
+      return;
+    }
+
     if (currentUser.role === "admin") {
       setIsCoded(false);
       setAAcces(true);
       setCheckingAcces(false);
       return;
     }
+
     verifierAccesFormation(courseId)
       .then((data) => {
         setIsCoded(data.is_coded);
         const estProp = (data as any).est_proprietaire === true;
         const hasAcces = data.a_acces || estProp;
         setAAcces(hasAcces);
-        if (hasAcces && data.is_coded) markUnlocked(courseId); // ✅ Fix 2
+        if (hasAcces && data.is_coded) markUnlocked(courseId);
       })
       .catch(() => setAAcces(true))
       .finally(() => setCheckingAcces(false));
-  }, [courseId, currentUser]);
+  }, [courseId, currentUser, isPublicCourseDetail, markUnlocked]);
 
   // ── Progression helpers ───────────────────────────────────
   const getModuleProgress = (moduleId: string): number => {
@@ -309,7 +330,7 @@ export const CourseDetail: React.FC = () => {
         (c) => !c.progression?.complete,
       ).length;
       toast.warning(
-        `📚 Terminez tous les contenus du module avant d'accéder au quiz.\n${contenusRestants} contenu(s) restant(s).`,
+        `Terminez tous les contenus du module avant d'accéder au quiz.\n${contenusRestants} contenu(s) restant(s).`,
         { duration: 4000 },
       );
       return;
@@ -334,8 +355,8 @@ export const CourseDetail: React.FC = () => {
 
   // ── Chargement module ─────────────────────────────────────
   const handleToggleModule = async (moduleId: string, moduleIndex: number) => {
-    // Fix 3 — Vérifier accès
-    if (!isModuleUnlocked(moduleIndex) && canAccess) {
+    // ✅ En mode connecté seulement : vérifier le verrouillage des modules
+    if (!isPublicCourseDetail && !isModuleUnlocked(moduleIndex) && canAccess) {
       const prevModule = sortedModules[moduleIndex - 1];
       toast.error(
         `Terminez le module "${prevModule?.title ?? "précédent"}" et son quiz pour accéder à celui-ci.`,
@@ -343,29 +364,67 @@ export const CourseDetail: React.FC = () => {
       return;
     }
 
+    // Ouvrir / fermer le module
     if (openModuleId === moduleId) {
       setOpenModuleId(null);
       setSelectedContent(null);
       return;
     }
+
     setOpenModuleId(moduleId);
     setSelectedContent(null);
 
-    if (courseId) {
-      if (!moduleContenus[moduleId]) {
-        setLoadingContenus((prev) => ({ ...prev, [moduleId]: true }));
-        try {
-          const data = await getContenus(courseId, moduleId);
-          setModuleContenus((prev) => ({ ...prev, [moduleId]: data }));
-        } catch {
-          toast.error("Impossible de charger les contenus");
-        } finally {
-          setLoadingContenus((prev) => ({ ...prev, [moduleId]: false }));
+    if (!courseId) return;
+
+    // Charger les contenus du module une seule fois
+    if (!moduleContenus[moduleId]) {
+      setLoadingContenus((prev) => ({ ...prev, [moduleId]: true }));
+
+      try {
+        let data;
+
+        if (isPublicCourseDetail) {
+          // ✅ Page publique : appel public SANS token
+          const baseURL =
+            import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+
+          const res = await axios.get(
+            `${baseURL}/formations/${courseId}/modules/${moduleId}/contenus`,
+          );
+
+          const rawData = Array.isArray(res.data)
+            ? res.data
+            : (res.data?.data ?? []);
+
+          // ✅ Normalisation backend → frontend
+          // Backend : titre, resume, duree
+          // Frontend : title, summary, duration
+          data = rawData.map((item: any) => ({
+            ...item,
+            id: String(item.id),
+            moduleId: String(item.module_id ?? item.moduleId ?? moduleId),
+            title: item.title ?? item.titre ?? "Contenu sans titre",
+            summary: item.summary ?? item.resume ?? "",
+            duration: Number(item.duration ?? item.duree ?? 0),
+            type: item.type,
+            url: item.url ?? item.chemin_fichier ?? "",
+          }));
+        } else {
+          // ✅ Page connectée : logique normale existante
+          data = await getContenus(courseId, moduleId);
         }
+
+        setModuleContenus((prev) => ({ ...prev, [moduleId]: data }));
+      } catch {
+        toast.error("Impossible de charger les contenus");
+      } finally {
+        setLoadingContenus((prev) => ({ ...prev, [moduleId]: false }));
       }
-      if (!moduleQuizStatus[moduleId]) {
-        await chargerStatutQuiz(courseId, moduleId, progressionData);
-      }
+    }
+
+    // ✅ Le statut quiz ne sert que dans l'espace connecté
+    if (!isPublicCourseDetail && !moduleQuizStatus[moduleId]) {
+      await chargerStatutQuiz(courseId, moduleId, progressionData);
     }
   };
 
@@ -373,6 +432,11 @@ export const CourseDetail: React.FC = () => {
     moduleId: string,
     content: Content & { progression?: any },
   ) => {
+    if (isPublicCourseDetail) {
+      toast.info("Connectez-vous ou inscrivez-vous pour ouvrir ce contenu.");
+      return;
+    }
+
     // ✅ Admin ou créateur peuvent voir tous les contenus sans vérification
     if (currentUser?.role === "admin" || isOwnerInstructor) {
       setSelectedContent({ moduleId, content });
@@ -388,7 +452,10 @@ export const CourseDetail: React.FC = () => {
 
     // Pour les apprenants : vérifier l'inscription
     if (!canAccess) {
-      toast.error("Inscrivez-vous pour accéder aux contenus");
+      if (isPublicCourseDetail || !canAccess) {
+        toast.info("Connectez-vous ou inscrivez-vous pour ouvrir ce contenu.");
+        return;
+      }
       return;
     }
 
@@ -430,11 +497,19 @@ export const CourseDetail: React.FC = () => {
   };
 
   const handleEnroll = async () => {
-    if (!currentUser) {
-      navigate("/login");
+    // Page publique : toujours envoyer vers login
+    if (isPublicCourseDetail) {
+      navigate(`/login?redirect=/app/courses/${courseId}`);
       return;
     }
+
+    if (!currentUser) {
+      navigate(`/login?redirect=/app/courses/${courseId}`);
+      return;
+    }
+
     setEnrolling(true);
+
     try {
       await enrollFormation(courseId!);
       setIsEnrolled(true);
@@ -444,7 +519,9 @@ export const CourseDetail: React.FC = () => {
         if (error.response?.status === 409) {
           setIsEnrolled(true);
           toast.info("Vous êtes déjà inscrit");
-        } else toast.error(error.response?.data?.message || "Erreur");
+        } else {
+          toast.error(error.response?.data?.message || "Erreur");
+        }
       }
     } finally {
       setEnrolling(false);
@@ -487,7 +564,8 @@ export const CourseDetail: React.FC = () => {
     isInstructorOrAdmin &&
     String((course as any).instructorId) === String(currentUser?.id);
   const canAccess =
-    isOwnerInstructor || currentUser?.role === "admin" || isEnrolled;
+    !isPublicCourseDetail &&
+    (isOwnerInstructor || currentUser?.role === "admin" || isEnrolled);
   const totalProgress = getTotalProgress();
 
   return (
@@ -496,7 +574,9 @@ export const CourseDetail: React.FC = () => {
       <div className="max-w-6xl mx-auto px-6 pt-6">
         <Button
           variant="ghost"
-          onClick={() => navigate("/app/courses")}
+          onClick={() =>
+            navigate(isPublicCourseDetail ? "/formations" : "/app/courses")
+          }
           className="gap-2 text-slate-400 hover:text-white hover:bg-white/10"
         >
           <ArrowLeft className="w-4 h-4" /> Retour aux formations
@@ -560,12 +640,10 @@ export const CourseDetail: React.FC = () => {
               </p>
 
               {/* Stats */}
-
-              {/* Stats */}
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
                   <Clock className="h-4 w-4 text-blue-400" />
-                  <span>{course.estimatedDuration}h de contenu</span>
+                  <span>{course.estimatedDuration}h de contenu estimé</span>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-2xl">
                   <BookOpen className="h-4 w-4 text-indigo-400" />
@@ -611,9 +689,11 @@ export const CourseDetail: React.FC = () => {
 
               {/* CTA */}
               <div className="mt-9 flex flex-wrap items-center gap-4">
-                {currentUser?.role === "learner" ||
+                {isPublicCourseDetail ||
+                !currentUser ||
+                currentUser?.role === "learner" ||
                 (currentUser?.role === "instructor" && !isOwner) ? (
-                  isEnrolled ? (
+                  !isPublicCourseDetail && isEnrolled && !!currentUser ? ( // ← protection : inscrit ET connecté
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/15 px-5 py-3 text-sm font-semibold text-emerald-300">
                         <CheckCircle className="h-4 w-4" /> Vous êtes inscrit
@@ -959,7 +1039,9 @@ export const CourseDetail: React.FC = () => {
                   const quizStatus = moduleQuizStatus[module.id];
                   const modProg = getModuleProgress(module.id);
                   // ✅ Fix 3 — Vérifier si ce module est accessible
-                  const moduleAccess = isModuleUnlocked(index);
+                  const moduleAccess = isPublicCourseDetail
+                    ? true
+                    : isModuleUnlocked(index);
                   const isLastModule = module.id === lastModuleId;
 
                   return (
@@ -1138,27 +1220,29 @@ export const CourseDetail: React.FC = () => {
                                         }`}
                                       >
                                         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-white/5">
-                                          {!canAccess ? (
-                                            <Lock className="w-3.5 h-3.5 text-slate-600" />
-                                          ) : (
-                                            <ContentIcon
-                                              type={c.type}
-                                              className="w-3.5 h-3.5"
-                                            />
-                                          )}
+                                          <ContentIcon
+                                            type={c.type}
+                                            className="w-3.5 h-3.5"
+                                          />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                          <p
-                                            className={`text-sm font-medium truncate ${
-                                              isSelected
-                                                ? "text-blue-400"
-                                                : isDone
-                                                  ? "text-slate-500"
-                                                  : "text-slate-300"
-                                            }`}
-                                          >
-                                            {c.title}
-                                          </p>
+                                          <div className="flex items-center gap-2">
+                                            <p
+                                              className={`text-sm font-medium truncate ${
+                                                isSelected
+                                                  ? "text-blue-400"
+                                                  : isDone
+                                                    ? "text-slate-500"
+                                                    : "text-slate-300"
+                                              }`}
+                                            >
+                                              {c.title}
+                                            </p>
+
+                                            <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                                              {c.type}
+                                            </span>
+                                          </div>
                                           {c.summary && (
                                             <p className="text-xs text-slate-600 truncate">
                                               {c.summary}
@@ -1211,11 +1295,18 @@ export const CourseDetail: React.FC = () => {
             formationId={courseId!}
             key={feedbackRefresh}
             onRefresh={() => setFeedbackRefresh((r) => r + 1)}
+            isPublic={isPublicCourseDetail}
+            canReply={
+              !isPublicCourseDetail &&
+              (isOwnerInstructor || currentUser?.role === "admin")
+            }
           />{" "}
         </motion.div>
 
         {/* CTA inscription */}
-        {(currentUser?.role === "learner" ||
+        {(isPublicCourseDetail || // ← ajouter cette ligne
+          !currentUser ||
+          currentUser?.role === "learner" ||
           (currentUser?.role === "instructor" && !isOwnerInstructor)) &&
           !isEnrolled && (
             <motion.div
@@ -1270,6 +1361,14 @@ export const CourseDetail: React.FC = () => {
           }}
         />
       </div>
+      {/* Footer */}
+      <footer className="border-t border-gray-200 py-6 bg-white dark:bg-gray-950">
+        <div className="flex justify-center">
+          <p className="text-xs text-center text-gray-500">
+            © {new Date().getFullYear()} LMS. Tous droits réservés.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

@@ -90,11 +90,16 @@ export const Profile: React.FC = () => {
         >
           <Card>
             <CardHeader>
-              <CardTitle>Informations personnelles</CardTitle>
+              <CardTitle className="text-center">
+                Informations personnelles
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex items-center gap-3">
+
+            <CardContent className="space-y-8 flex flex-col items-center">
+              {/* Informations principales */}
+              <div className="flex flex-col items-center gap-6 text-center w-full">
+                {/* Nom */}
+                <div className="flex flex-col items-center gap-2 w-full max-w-md">
                   <User className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Nom complet</p>
@@ -103,7 +108,9 @@ export const Profile: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+
+                {/* Email */}
+                <div className="flex flex-col items-center gap-2 w-full max-w-md">
                   <Mail className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Email</p>
@@ -112,7 +119,9 @@ export const Profile: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+
+                {/* Téléphone */}
+                <div className="flex flex-col items-center gap-2 w-full max-w-md">
                   <Phone className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Téléphone</p>
@@ -121,7 +130,9 @@ export const Profile: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+
+                {/* Date de naissance */}
+                <div className="flex flex-col items-center gap-2 w-full max-w-md">
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Date de naissance</p>
@@ -134,7 +145,9 @@ export const Profile: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+
+                {/* Langue */}
+                <div className="flex flex-col items-center gap-2 w-full max-w-md">
                   <Globe className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Langue préférée</p>
@@ -145,12 +158,14 @@ export const Profile: React.FC = () => {
                 </div>
               </div>
 
+              {/* Domaines d'intérêt */}
               {(currentUser.targetDomains?.length ?? 0) > 0 && (
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">
+                <div className="flex flex-col items-center text-center">
+                  <p className="text-sm text-gray-500 mb-3">
                     Domaines d'intérêt
                   </p>
-                  <div className="flex flex-wrap gap-2">
+
+                  <div className="flex flex-wrap justify-center gap-2">
                     {currentUser.targetDomains!.map((d, i) => (
                       <Badge key={i} variant="secondary">
                         {d}
@@ -160,10 +175,12 @@ export const Profile: React.FC = () => {
                 </div>
               )}
 
+              {/* Technologies */}
               {(currentUser.technologies?.length ?? 0) > 0 && (
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">Technologies</p>
-                  <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col items-center text-center">
+                  <p className="text-sm text-gray-500 mb-3">Technologies</p>
+
+                  <div className="flex flex-wrap justify-center gap-2">
                     {currentUser.technologies!.map((t, i) => (
                       <Badge key={i}>{t}</Badge>
                     ))}

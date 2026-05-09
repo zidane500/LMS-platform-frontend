@@ -575,28 +575,26 @@ export const Dashboard: React.FC = () => {
                           </div>
                           {badgesUniques.length > 0 ? (
                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                              {badgesUniques
-                                .slice(0, 6)
-                                .map((badge: any, i: number) => (
-                                  <motion.div
-                                    key={i}
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{
-                                      delay: i * 0.05,
-                                      type: "spring",
-                                    }}
-                                    onClick={() => navigate("/app/badges")}
-                                    className="flex flex-col items-center p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-xl hover:shadow-lg transition-shadow cursor-pointer"
-                                  >
-                                    <span className="text-3xl mb-1">
-                                      {badge.icone}
-                                    </span>
-                                    <p className="text-xs font-semibold text-center dark:text-white line-clamp-2">
-                                      {badge.nom}
-                                    </p>
-                                  </motion.div>
-                                ))}
+                              {badgesUniques.map((badge: any, i: number) => (
+                                <motion.div
+                                  key={badge.code ?? i}
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{
+                                    delay: i * 0.03,
+                                    type: "spring",
+                                  }}
+                                  onClick={() => navigate("/app/badges")}
+                                  className="flex flex-col items-center p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-xl hover:shadow-lg transition-shadow cursor-pointer"
+                                >
+                                  <span className="text-3xl mb-1">
+                                    {badge.icone}
+                                  </span>
+                                  <p className="text-xs font-semibold text-center dark:text-white line-clamp-2">
+                                    {badge.nom}
+                                  </p>
+                                </motion.div>
+                              ))}
                             </div>
                           ) : (
                             <div className="text-center py-8">
@@ -735,6 +733,12 @@ export const Dashboard: React.FC = () => {
           </>
         )}
       </div>
+      {/* ── FOOTER ── */}
+      <footer className="bg-gray-950 text-gray-400 pt-16 pb-8">
+        <p className="text-xs text-center">
+          © {new Date().getFullYear()} LMS. Tous droits réservés.
+        </p>
+      </footer>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { Search, Plus, BookOpen, RefreshCw, Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -37,8 +37,14 @@ export const Courses: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
+  const location = useLocation();
+
+  // ✅ true quand on est sur /formations ou /formations/:id
+  const isPublicCoursesPage = location.pathname.startsWith("/formations");
+
   const isInstructorOrAdmin =
-    currentUser?.role === "instructor" || currentUser?.role === "admin";
+    !isPublicCoursesPage &&
+    (currentUser?.role === "instructor" || currentUser?.role === "admin");
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -131,10 +137,42 @@ export const Courses: React.FC = () => {
   };
 
   const canEditCourse = (course: Course) => {
+    // ✅ Sur la page publique, personne ne doit modifier/supprimer
+    if (isPublicCoursesPage) return false;
+
     if (currentUser?.role === "admin") return true;
-    if (currentUser?.role === "instructor")
+
+    if (currentUser?.role === "instructor") {
       return String(course.instructorId) === String(currentUser.id);
+    }
+
     return false;
+  };
+  const handleViewCourse = (courseId: string) => {
+    // ✅ Si on est dans la page publique, toujours rester en public
+    if (isPublicCoursesPage) {
+      navigate(`/formations/${courseId}`);
+      return;
+    }
+
+    // ✅ Sinon, dans l'espace connecté
+    navigate(`/app/courses/${courseId}`);
+  };
+
+  const handleTryEnroll = (courseId: string) => {
+    // ✅ Sur la page publique, "Essai de l'obtenir" ouvre aussi le détail public
+    if (isPublicCoursesPage) {
+      navigate(`/formations/${courseId}`);
+      return;
+    }
+
+    // ✅ Dans l'espace app
+    if (currentUser) {
+      navigate(`/app/courses/${courseId}`);
+      return;
+    }
+
+    navigate("/login");
   };
 
   return (
@@ -312,16 +350,26 @@ export const Courses: React.FC = () => {
                   <CourseCard
                     course={course}
                     isUnlocked={
-                      !course.is_coded ||
-                      (course as any).aAcces === true ||
-                      checkUnlocked(String(course.id)) // ← Fix 2 : lecture du localStorage
+                      isPublicCoursesPage
+                        ? !course.is_coded
+                        : !course.is_coded ||
+                          (course as any).aAcces === true ||
+                          checkUnlocked(String(course.id))
                     }
-                    isOwner={currentUser?.id === (course as any).instructorId}
-                    hasCertificate={certificatFormationIds.includes(
-                      String(course.id),
-                    )}
-                    isEnrolled={(course as any).isEnrolled ?? false}
-                    onView={() => navigate(`/app/courses/${course.id}`)}
+                    isOwner={
+                      !isPublicCoursesPage &&
+                      currentUser?.id === (course as any).instructorId
+                    }
+                    hasCertificate={
+                      !isPublicCoursesPage &&
+                      certificatFormationIds.includes(String(course.id))
+                    }
+                    isEnrolled={
+                      !isPublicCoursesPage &&
+                      ((course as any).isEnrolled ?? false)
+                    }
+                    onView={() => handleViewCourse(course.id)}
+                    onEnroll={() => handleTryEnroll(course.id)}
                     onEdit={
                       canEditCourse(course)
                         ? () => navigate(`/app/courses/edit/${course.id}`)
@@ -368,6 +416,14 @@ export const Courses: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Footer */}
+      <footer className="border-t border-gray-200 py-6 bg-white dark:bg-gray-950">
+        <div className="flex justify-center">
+          <p className="text-xs text-center text-gray-500">
+            © {new Date().getFullYear()} LMS. Tous droits réservés.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

@@ -52,6 +52,18 @@ export const router = createBrowserRouter([
     path: "/reset-password",
     Component: ResetPassword,
   },
+  // ✅ Page publique des formations — accessible sans inscription
+  {
+    path: "/formations",
+    Component: Courses,
+  },
+
+  // ✅ Détail public d'une formation — accessible sans inscription
+  {
+    path: "/formations/:id",
+    Component: CourseDetail,
+  },
+
   {
     path: "/app",
     Component: Layout,

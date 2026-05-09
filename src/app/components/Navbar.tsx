@@ -12,20 +12,24 @@ import {
   Shield,
   UserPlus,
   Award,
+  Trophy, // ← ajouter
+  Inbox,
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext"; // ← ajouter
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationBell } from "./NotificationBell";
-import { Inbox } from "lucide-react";
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
-  const { currentUser, setCurrentUser } = useApp();
+  const { currentUser } = useApp();
+  const { logout } = useAuth(); // ← ajouter : récupérer la vraie fonction logout
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (!currentUser) return null;
+
   const getRoleLabel = (role?: string): string => {
     switch (role) {
       case "learner":
@@ -39,12 +43,12 @@ export const Navbar: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
+  // ✅ FIX : utiliser logout() qui supprime le token du localStorage
+  const handleLogout = async () => {
+    await logout();
   };
 
   const [avatarKey, setAvatarKey] = React.useState(Date.now());
-
   React.useEffect(() => {
     setAvatarKey(Date.now());
   }, [currentUser?.avatar]);
@@ -59,7 +63,6 @@ export const Navbar: React.FC = () => {
     { path: "/app/profile", label: "Profil", icon: User },
   ];
 
-  // Si l'utilisateur est un instructor ou admin, ajoutez "Messages"
   if (currentUser.role === "instructor" || currentUser.role === "admin") {
     navItems.push({ path: "/app/inbox", label: "Messages", icon: Inbox });
   }
@@ -70,6 +73,11 @@ export const Navbar: React.FC = () => {
       label: "Certificats",
       icon: Award,
     });
+  }
+
+  // ✅ Ajouter le lien Badges pour les apprenants
+  if (currentUser.role === "learner") {
+    navItems.push({ path: "/app/badges", label: "Badges", icon: Trophy });
   }
 
   if (currentUser.role === "admin") {
@@ -106,7 +114,6 @@ export const Navbar: React.FC = () => {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
-
               return (
                 <Link key={item.path} to={item.path}>
                   <Button
@@ -130,7 +137,6 @@ export const Navbar: React.FC = () => {
                   className="gap-2 border-purple-200 text-purple-600 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950/30"
                 >
                   <UserPlus className="w-4 h-4" />
-                  Devenir formateur
                 </Button>
               </Link>
             )}
@@ -163,10 +169,7 @@ export const Navbar: React.FC = () => {
 
           {/* Mobile right controls */}
           <div className="flex items-center gap-2 md:hidden">
-            {/* 🔔 Notification */}
             <NotificationBell />
-
-            {/* ☰ Menu */}
             <Button
               variant="ghost"
               size="icon"
@@ -200,7 +203,6 @@ export const Navbar: React.FC = () => {
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path;
-
                   return (
                     <Link
                       key={item.path}
@@ -217,6 +219,21 @@ export const Navbar: React.FC = () => {
                     </Link>
                   );
                 })}
+                {/* Bouton devenir formateur mobile */}
+                {currentUser.role === "learner" && (
+                  <Link
+                    to="/app/become-instructor"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2 border-purple-200 text-purple-600 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950/30"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Devenir formateur
+                    </Button>
+                  </Link>
+                )}
                 <Button
                   variant="ghost"
                   onClick={handleLogout}

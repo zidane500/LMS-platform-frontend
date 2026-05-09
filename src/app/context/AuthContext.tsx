@@ -5,8 +5,14 @@
 // - Stocker le token dans localStorage
 // - Fournir les fonctions login / register / logout
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '../types';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { User } from "../types";
 import {
   loginUser,
   registerUser,
@@ -15,7 +21,7 @@ import {
   forgotPassword as apiForgotPassword,
   LoginData,
   RegisterData,
-} from '../services/authService';
+} from "../services/authService";
 
 // ─── TYPE DU CONTEXTE ────────────────────────────────────
 interface AuthContextType {
@@ -38,7 +44,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // ─── PROVIDER ────────────────────────────────────────────
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true); // true au démarrage
 
@@ -46,17 +54,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Si oui, on récupère les infos de l'utilisateur depuis le backend
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem("auth_token");
+      const path = window.location.pathname;
+
+      // Pages publiques : on ne restaure pas automatiquement l'utilisateur
+      // pour éviter que /formations se comporte comme /app/courses
+      const isPublicPage =
+        path === "/" ||
+        path.startsWith("/formations") ||
+        path.startsWith("/login") ||
+        path.startsWith("/register") ||
+        path.startsWith("/forgot-password") ||
+        path.startsWith("/reset-password") ||
+        path.startsWith("/verify");
+
+      if (isPublicPage) {
+        setCurrentUser(null);
+        setLoading(false);
+        return;
+      }
 
       if (token) {
         try {
-          // On demande au backend qui est cet utilisateur
           const user = await getMe();
           setCurrentUser(user);
         } catch {
-          // Token invalide ou expiré → on nettoie
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("auth_user");
           setCurrentUser(null);
         }
       }
@@ -72,8 +96,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { user, token } = await loginUser(data);
 
     // Sauvegarde du token et de l'utilisateur dans localStorage
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(user));
+    localStorage.setItem("auth_token", token);
+    localStorage.setItem("auth_user", JSON.stringify(user));
 
     setCurrentUser(user);
     return user;
@@ -83,8 +107,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (data: RegisterData): Promise<User> => {
     const { user, token } = await registerUser(data);
 
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(user));
+    localStorage.setItem("auth_token", token);
+    localStorage.setItem("auth_user", JSON.stringify(user));
 
     setCurrentUser(user);
     return user;
@@ -95,12 +119,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       await logoutUser(); // Informe le backend
     } catch {
-      // Si l'API échoue (ex: token déjà expiré), on continue quand même
+      // Même si l'API échoue, on nettoie le frontend
     }
 
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    // Nettoyage complet côté navigateur
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
+    sessionStorage.clear();
+
     setCurrentUser(null);
+
+    // Important : recharge propre de l'app après déconnexion
+    window.location.href = "/";
   };
 
   // ─── MOT DE PASSE OUBLIÉ ───────────────────────────────
@@ -131,7 +161,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth doit être utilisé dans un AuthProvider');
+    throw new Error("useAuth doit être utilisé dans un AuthProvider");
   }
   return context;
 };

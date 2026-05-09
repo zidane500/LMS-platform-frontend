@@ -165,15 +165,6 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
               </div>
             )}
 
-            {/* 🔄 Progress indicator */}
-            {isInProgress && (
-              <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
-                <span className="text-[8px] font-bold text-white">
-                  {progress}%
-                </span>
-              </div>
-            )}
-
             {/* Tier */}
             {badge.tier !== "common" && (
               <div
@@ -218,44 +209,6 @@ export function BadgeCard({ badge, onSelect, index }: BadgeCardProps) {
                 bg-gradient-to-r ${badge.gradient} text-white`}
             >
               +{badge.xpReward} XP
-            </div>
-          )}
-
-          {/* PROGRESS BAR */}
-          {!isUnlocked && (
-            <div className="w-full mt-1">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] text-slate-400">
-                  {isInProgress ? "En cours" : "Verrouillé"}
-                </span>
-                <span className="text-[10px] font-semibold text-white">
-                  {progress}%
-                </span>
-              </div>
-
-              <div className="w-full h-1.5 rounded-full bg-[rgba(255,255,255,0.08)] overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{
-                    duration: 1,
-                    delay: index * 0.05 + 0.3,
-                    ease: "easeOut",
-                  }}
-                  className="h-full rounded-full"
-                  style={{
-                    background: isInProgress
-                      ? "linear-gradient(90deg, #f59e0b, #f97316)"
-                      : "rgba(100,116,139,0.4)",
-                  }}
-                />
-              </div>
-
-              {(badge as any).progressDetail && (
-                <p className="text-[9px] text-slate-500 mt-1 text-center">
-                  {(badge as any).progressDetail}
-                </p>
-              )}
             </div>
           )}
 

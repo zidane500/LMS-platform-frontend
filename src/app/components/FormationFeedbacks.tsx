@@ -1,17 +1,10 @@
 import React, { useEffect, useState } from "react";
-import {
-  Star,
-  Loader2,
-  MessageSquare,
-  Edit2,
-  Trash2,
-  X,
-  Check,
-} from "lucide-react";
+import { Star, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import api from "../services/api";
 import { motion } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
+import { useLocation } from "react-router";
 
 interface FeedbackItem {
   id: number;
@@ -19,38 +12,47 @@ interface FeedbackItem {
   commentaire?: string;
   created_at: string;
   user: { nom: string; avatar?: string; initiale: string };
+  reponse_formateur?: string;
+  repondu_le?: string;
 }
 
 interface Props {
   formationId: string;
   onRefresh?: () => void;
+  isPublic?: boolean;
+  canReply?: boolean;
 }
 
 export const FormationFeedbacks: React.FC<Props> = ({
   formationId,
   onRefresh,
+  isPublic = false,
+  canReply = false,
 }) => {
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [moyenne, setMoyenne] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const { currentUser } = useAuth();
 
-  // États pour l'édition
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editNote, setEditNote] = useState(0);
-  const [editCommentaire, setEditCommentaire] = useState("");
-  const [editHovered, setEditHovered] = useState(0);
+  const [replyingId, setReplyingId] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [savingReply, setSavingReply] = useState(false);
+
+  const { currentUser } = useAuth();
+  const location = useLocation();
+
+  const isPublicPage = isPublic || location.pathname.startsWith("/formations");
 
   const loadFeedbacks = async () => {
     setLoading(true);
+
     try {
       const res = await api.get(`/formations/${formationId}/feedbacks`);
       setFeedbacks(res.data.feedbacks ?? []);
       setMoyenne(res.data.moyenne);
       setTotal(res.data.total ?? 0);
-    } catch (error) {
-      console.error("Erreur chargement feedbacks:", error);
+    } catch {
+      console.error("Erreur chargement feedbacks");
     } finally {
       setLoading(false);
     }
@@ -68,74 +70,63 @@ export const FormationFeedbacks: React.FC<Props> = ({
       toast.success("Commentaire supprimé");
       loadFeedbacks();
       onRefresh?.();
-    } catch (error) {
+    } catch {
       toast.error("Erreur lors de la suppression");
     }
   };
 
-  const handleEdit = (feedback: FeedbackItem) => {
-    setEditingId(feedback.id);
-    setEditNote(feedback.note);
-    setEditCommentaire(feedback.commentaire || "");
+  const startReply = (fb: FeedbackItem) => {
+    setReplyingId(fb.id);
+    setReplyText(fb.reponse_formateur ?? "");
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingId) return;
+  const cancelReply = () => {
+    setReplyingId(null);
+    setReplyText("");
+  };
+
+  const handleSaveReply = async (feedbackId: number) => {
+    setSavingReply(true);
 
     try {
-      await api.put(`/feedbacks/${editingId}`, {
-        note: editNote,
-        commentaire: editCommentaire,
+      await api.put(`/feedbacks/${feedbackId}/repondre`, {
+        reponse: replyText.trim() || null,
       });
-      toast.success("Commentaire modifié");
-      setEditingId(null);
+
+      toast.success(replyText.trim() ? "Réponse publiée" : "Réponse supprimée");
+      setReplyingId(null);
+      setReplyText("");
       loadFeedbacks();
       onRefresh?.();
-    } catch (error) {
-      toast.error("Erreur lors de la modification");
+    } catch {
+      toast.error("Erreur lors de la sauvegarde");
+    } finally {
+      setSavingReply(false);
     }
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditNote(0);
-    setEditCommentaire("");
-  };
-
-  const renderStars = (
-    note: number,
-    size = "w-4 h-4",
-    interactive = false,
-    onStarClick?: (i: number) => void,
-  ) => (
+  const renderStars = (note: number, size = "w-4 h-4") => (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5, 6].map((i) => (
-        <button
+        <Star
           key={i}
-          type="button"
-          onClick={() => interactive && onStarClick?.(i)}
-          onMouseEnter={() => interactive && setEditHovered(i)}
-          onMouseLeave={() => interactive && setEditHovered(0)}
-          className={interactive ? "cursor-pointer" : "cursor-default"}
-        >
-          <Star
-            className={`${size} ${
-              i <= (interactive ? editHovered || editNote : note)
-                ? "fill-yellow-400 text-yellow-400"
-                : "text-gray-300 dark:text-slate-600"
-            }`}
-          />
-        </button>
+          className={`${size} ${
+            i <= note
+              ? "fill-yellow-400 text-yellow-400"
+              : "text-gray-300 dark:text-slate-600"
+          }`}
+        />
       ))}
     </div>
   );
 
-  if (loading)
+  if (loading) {
     return (
       <div className="flex justify-center py-8">
         <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
       </div>
     );
+  }
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
@@ -149,6 +140,7 @@ export const FormationFeedbacks: React.FC<Props> = ({
               ({total} avis)
             </span>
           </h2>
+
           {moyenne !== null && (
             <div className="flex items-center gap-2">
               <span className="text-2xl font-bold text-yellow-400">
@@ -180,104 +172,118 @@ export const FormationFeedbacks: React.FC<Props> = ({
                 transition={{ delay: i * 0.05 }}
                 className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2"
               >
-                {editingId === fb.id ? (
-                  // Mode édition
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm">
-                          {fb.user.initiale}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-white">
-                            {fb.user.nom}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {fb.created_at}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={handleSaveEdit}
-                          className="p-1 text-green-400 hover:bg-green-500/10 rounded"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="p-1 text-red-400 hover:bg-red-500/10 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      {renderStars(editNote, "w-4 h-4", true, (i) =>
-                        setEditNote(i),
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm shrink-0 overflow-hidden">
+                      {fb.user.avatar ? (
+                        <img
+                          src={fb.user.avatar}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        fb.user.initiale
                       )}
                     </div>
-                    <textarea
-                      value={editCommentaire}
-                      onChange={(e) => setEditCommentaire(e.target.value)}
-                      rows={3}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
-                    />
-                  </div>
-                ) : (
-                  // Mode affichage normal
-                  <>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm shrink-0 overflow-hidden">
-                          {fb.user.avatar ? (
-                            <img
-                              src={fb.user.avatar}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            fb.user.initiale
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white truncate">
-                            {fb.user.nom}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {fb.created_at}
-                          </p>
-                        </div>
-                      </div>
-                      {/* Actions admin */}
-                      {currentUser?.role === "admin" && (
-                        <div className="flex gap-1 shrink-0">
-                          <button
-                            onClick={() => handleEdit(fb)}
-                            className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
-                            title="Modifier"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(fb.id)}
-                            className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Supprimer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex justify-between items-center">
-                      {renderStars(fb.note, "w-3.5 h-3.5")}
-                    </div>
-                    {fb.commentaire && (
-                      <p className="text-sm text-slate-300 leading-relaxed border-t border-white/5 pt-2">
-                        {fb.commentaire}
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">
+                        {fb.user.nom}
                       </p>
+                      <p className="text-xs text-slate-500">{fb.created_at}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1 shrink-0">
+                    {/* Réponse formateur/admin — pas en page publique */}
+                    {!isPublicPage && canReply && replyingId !== fb.id && (
+                      <button
+                        onClick={() => startReply(fb)}
+                        className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors text-xs flex items-center gap-1"
+                        title="Répondre"
+                      >
+                        💬
+                        <span className="hidden sm:inline text-xs">
+                          {fb.reponse_formateur
+                            ? "Modifier réponse"
+                            : "Répondre"}
+                        </span>
+                      </button>
                     )}
-                  </>
+
+                    {/* Admin : supprimer seulement, pas modifier */}
+                    {!isPublicPage && currentUser?.role === "admin" && (
+                      <button
+                        onClick={() => handleDelete(fb.id)}
+                        className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  {renderStars(fb.note, "w-3.5 h-3.5")}
+                </div>
+
+                {fb.commentaire && (
+                  <p className="text-sm text-slate-300 leading-relaxed border-t border-white/5 pt-2">
+                    {fb.commentaire}
+                  </p>
+                )}
+
+                {/* Formulaire de réponse */}
+                {replyingId === fb.id && (
+                  <div className="mt-2 border-t border-white/10 pt-3 space-y-2">
+                    <p className="text-xs text-emerald-400 font-semibold">
+                      Votre réponse :
+                    </p>
+
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      rows={3}
+                      placeholder="Écrivez votre réponse..."
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white resize-none"
+                    />
+
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={cancelReply}
+                        className="px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-white/10 rounded-lg transition"
+                      >
+                        Annuler
+                      </button>
+
+                      <button
+                        onClick={() => handleSaveReply(fb.id)}
+                        disabled={savingReply}
+                        className="px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition disabled:opacity-50"
+                      >
+                        {savingReply ? "Sauvegarde..." : "Publier"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Réponse existante */}
+                {fb.reponse_formateur && replyingId !== fb.id && (
+                  <div className="mt-2 border-t border-emerald-500/20 pt-3 bg-emerald-500/5 rounded-lg px-3 py-2">
+                    <p className="text-xs text-emerald-400 font-semibold mb-1 flex items-center gap-1">
+                      💬 Réponse du formateur
+                      {fb.repondu_le && (
+                        <span className="text-slate-500 font-normal ml-1">
+                          · {fb.repondu_le}
+                        </span>
+                      )}
+                    </p>
+
+                    <p className="text-sm text-slate-300 leading-relaxed">
+                      {fb.reponse_formateur}
+                    </p>
+                  </div>
                 )}
               </motion.div>
             ))}
