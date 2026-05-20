@@ -148,8 +148,8 @@ export const Certificates: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50/30 dark:from-slate-950 dark:to-purple-950/30">
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-purple-50/30 dark:from-slate-950 dark:to-purple-950/30">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-6 space-y-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -405,7 +405,16 @@ export const Certificates: React.FC = () => {
             </div>
           )}
         </motion.div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-gray-200 py-6 bg-white dark:bg-gray-950">
+        <div className="flex justify-center">
+          <p className="text-xs text-center text-gray-500">
+            © {new Date().getFullYear()} LMS. Tous droits réservés.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

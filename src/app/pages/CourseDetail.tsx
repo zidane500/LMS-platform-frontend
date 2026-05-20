@@ -114,6 +114,14 @@ export const CourseDetail: React.FC = () => {
   const isOwnerInstructor =
     isInstructorOrAdmin &&
     String((course as any)?.instructorId) === String(currentUser?.id);
+
+  const isStudyingUser =
+    !!currentUser &&
+    !isPublicCourseDetail &&
+    isEnrolled &&
+    (currentUser.role === "learner" ||
+      (currentUser.role === "instructor" && !isOwnerInstructor));
+
   const canAccessForTracking =
     !!currentUser && // ← jamais actif si pas connecté
     (isOwnerInstructor || currentUser?.role === "admin" || isEnrolled);
@@ -135,8 +143,17 @@ export const CourseDetail: React.FC = () => {
   // ── Progression ───────────────────────────────────────────
   const chargerProgression = async (
     formationId: string,
+    forceEnrolled = isEnrolled,
   ): Promise<ProgressionFormation | null> => {
-    if (!currentUser || currentUser.role !== "learner") return null;
+    const peutVoirProgression =
+      !!currentUser &&
+      !isPublicCourseDetail &&
+      forceEnrolled &&
+      (currentUser.role === "learner" ||
+        (currentUser.role === "instructor" && !isOwnerInstructor));
+
+    if (!peutVoirProgression) return null;
+
     try {
       const data = await getProgression(formationId);
       setProgressionData(data);
@@ -191,7 +208,7 @@ export const CourseDetail: React.FC = () => {
             currentUser?.role === "instructor") &&
           safeEnrolled
         ) {
-          const progression = await chargerProgression(courseId);
+          const progression = await chargerProgression(courseId, safeEnrolled);
           const mods = c.modules ?? [];
           await Promise.all(
             mods.map(async (module) => {
@@ -491,8 +508,8 @@ export const CourseDetail: React.FC = () => {
           : null,
       );
     }
-    if (courseId && currentUser?.role === "learner") {
-      await chargerProgression(courseId);
+    if (courseId && isStudyingUser) {
+      await chargerProgression(courseId, true);
     }
   };
 
@@ -1105,7 +1122,7 @@ export const CourseDetail: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-3 shrink-0">
-                            {currentUser?.role === "learner" && isEnrolled && (
+                            {isStudyingUser && (
                               <div className="hidden sm:flex items-center gap-2">
                                 <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
                                   <div
@@ -1296,10 +1313,7 @@ export const CourseDetail: React.FC = () => {
             key={feedbackRefresh}
             onRefresh={() => setFeedbackRefresh((r) => r + 1)}
             isPublic={isPublicCourseDetail}
-            canReply={
-              !isPublicCourseDetail &&
-              (isOwnerInstructor || currentUser?.role === "admin")
-            }
+            canReply={!isPublicCourseDetail && isOwnerInstructor}
           />{" "}
         </motion.div>
 

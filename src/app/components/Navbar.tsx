@@ -60,7 +60,7 @@ export const Navbar: React.FC = () => {
   const navItems = [
     { path: "/app", label: "Dashboard", icon: LayoutDashboard },
     { path: "/app/courses", label: "Formations", icon: BookOpen },
-    { path: "/app/profile", label: "Profil", icon: User },
+    { path: "/app/profile/edit", label: "Profil", icon: User },
   ];
 
   if (currentUser.role === "instructor" || currentUser.role === "admin") {

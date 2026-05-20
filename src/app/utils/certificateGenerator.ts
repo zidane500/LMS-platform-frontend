@@ -191,13 +191,11 @@ export async function generateCertificatePDF(
   doc.setFontSize(16);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(107, 114, 128);
-  doc.text("DE FORMATION PROFESSIONNELLE", width / 2, 63, { align: "center" });
 
-  // Ligne décorative sous le titre
+  // Ligne décorative exactement sous le titre
   doc.setDrawColor(99, 102, 241);
   doc.setLineWidth(0.5);
-  doc.line(width / 2 - 60, 66, width / 2 + 60, 66);
-
+  doc.line(width / 2 - 60, 58, width / 2 + 60, 58);
   // Sous-titre
   doc.setFontSize(12);
   doc.setTextColor(107, 114, 128);
@@ -221,7 +219,7 @@ export async function generateCertificatePDF(
   );
 
   // Nom de la formation
-  doc.setFontSize(20);
+  doc.setFontSize(27);
   doc.setTextColor(79, 70, 229);
   doc.setFont("helvetica", "bold");
   doc.text(certificate.courseName, width / 2, 112, { align: "center" });

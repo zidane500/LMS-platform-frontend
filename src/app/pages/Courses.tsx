@@ -176,8 +176,8 @@ export const Courses: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900 dark:to-blue-900/10">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900 dark:to-blue-900/10">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-6 space-y-6">
         {/* ── En-tête ── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -387,7 +387,7 @@ export const Courses: React.FC = () => {
             </div>
           </AnimatePresence>
         )}
-      </div>
+      </main>
 
       {/* ── Modale suppression ── */}
       <Dialog

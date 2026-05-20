@@ -195,22 +195,6 @@ export const FormationFeedbacks: React.FC<Props> = ({
                   </div>
 
                   <div className="flex gap-1 shrink-0">
-                    {/* Réponse formateur/admin — pas en page publique */}
-                    {!isPublicPage && canReply && replyingId !== fb.id && (
-                      <button
-                        onClick={() => startReply(fb)}
-                        className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors text-xs flex items-center gap-1"
-                        title="Répondre"
-                      >
-                        💬
-                        <span className="hidden sm:inline text-xs">
-                          {fb.reponse_formateur
-                            ? "Modifier réponse"
-                            : "Répondre"}
-                        </span>
-                      </button>
-                    )}
-
                     {/* Admin : supprimer seulement, pas modifier */}
                     {!isPublicPage && currentUser?.role === "admin" && (
                       <button
@@ -219,6 +203,15 @@ export const FormationFeedbacks: React.FC<Props> = ({
                         title="Supprimer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {canReply && !fb.reponse_formateur && (
+                      <button
+                        onClick={() => startReply(fb)}
+                        className="px-2.5 py-1 text-xs rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                        title="Répondre"
+                      >
+                        Répondre
                       </button>
                     )}
                   </div>
