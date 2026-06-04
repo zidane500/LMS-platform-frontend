@@ -208,6 +208,7 @@ export const EditProfile: React.FC = () => {
             .filter(Boolean),
           photo_profil: photoFile,
         });
+        console.log(updatedUser);
         setCurrentUser(updatedUser);
         localStorage.setItem("auth_user", JSON.stringify(updatedUser));
         toast.success("Profil mis à jour avec succès !");
@@ -305,11 +306,7 @@ export const EditProfile: React.FC = () => {
               </div>
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-gray-500">JPG, PNG — max 5 MB</p>
-                {isAdminEdit && (
-                  <p className="text-xs text-orange-500 dark:text-orange-400">
-                    ⚠️ Modification de la photo d'un autre utilisateur
-                  </p>
-                )}
+                
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -483,7 +480,6 @@ export const EditProfile: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="learner">Apprenant</SelectItem>
                     <SelectItem value="instructor">Formateur</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -154,7 +154,7 @@ export const Admin: React.FC = () => {
   const RequestCard = ({ request }: { request: InstructorRequest }) => (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="font-semibold">
               {request.user?.firstName} {request.user?.lastName}
@@ -167,13 +167,13 @@ export const Admin: React.FC = () => {
               {request.experience} ans
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
             <StatusBadge status={request.status} />
             <Button
               variant="outline"
               size="sm"
+              className="w-full sm:w-auto gap-1"
               onClick={() => setSelectedRequest(request)}
-              className="gap-1"
             >
               <Eye className="w-3 h-3" /> Voir
             </Button>
@@ -184,18 +184,22 @@ export const Admin: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-gray-50 to-blue-50/30">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
             <UserCog className="w-8 h-8 text-blue-600" /> Tableau de bord Admin
           </h1>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={loadRequests} className="gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+            <Button
+              variant="outline"
+              onClick={loadRequests}
+              className="gap-2 w-full sm:w-auto"
+            >
               <RefreshCw className="w-4 h-4" /> Actualiser
             </Button>
             <Link to="/app/admin/user-management">
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2 w-full sm:w-auto">
                 <Users className="w-4 h-4" /> Gérer les utilisateurs
               </Button>
             </Link>
@@ -205,9 +209,9 @@ export const Admin: React.FC = () => {
         {/* Statistiques */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
-            <CardContent className="p-4 flex items-center gap-4">
+            <CardContent className="p-4 flex items-center gap-3 sm:gap-4">
               <div className="p-3 bg-yellow-100 rounded-xl">
-                <FileCheck className="w-6 h-6 text-yellow-600" />
+                <FileCheck className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{pending.length}</p>
@@ -253,8 +257,11 @@ export const Admin: React.FC = () => {
               </div>
             ) : (
               <Tabs defaultValue="pending">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="pending">
+                <TabsList className="mb-4 w-full overflow-x-auto flex-nowrap">
+                  <TabsTrigger
+                    value="pending"
+                    className="whitespace-nowrap text-xs sm:text-sm"
+                  >
                     En attente ({pending.length})
                   </TabsTrigger>
                   <TabsTrigger value="accepted">
@@ -302,7 +309,7 @@ export const Admin: React.FC = () => {
         open={!!selectedRequest && !showRefusModal}
         onOpenChange={() => setSelectedRequest(null)}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Demande de {selectedRequest?.user?.firstName}{" "}
@@ -315,7 +322,7 @@ export const Admin: React.FC = () => {
 
           {selectedRequest && (
             <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="font-medium text-gray-600">
                     Spécialité :
@@ -418,7 +425,7 @@ export const Admin: React.FC = () => {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setSelectedRequest(null)}>
               Fermer
             </Button>
@@ -501,7 +508,7 @@ export const Admin: React.FC = () => {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => {

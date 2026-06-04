@@ -736,8 +736,8 @@ export const LandingPage: React.FC = () => {
               },
               {
                 step: "03",
-                title: "Demander role formateur",
-                desc: "Soumettez une demande pour devenir formateur et commencez à créer, gérer et publier vos propres cours sur la plateforme.",
+                title: "Téléchargez votre certificat",
+                desc: "Terminez votre formation, réussissez les évaluations et téléchargez automatiquement votre certificat de réussite depuis votre espace personnel.",
                 color: "#7C3AED",
                 bg: "#F5F3FF",
               },

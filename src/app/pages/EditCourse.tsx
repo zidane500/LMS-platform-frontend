@@ -230,11 +230,28 @@ export const EditCourse: React.FC = () => {
   // ── Chargement initial ────────────────────────────────────
   useEffect(() => {
     if (!courseId) return;
-    setPageLoading(true);
-    getFormation(courseId)
-      .then((c) => {
+
+    const loadCourse = async () => {
+      try {
+        setPageLoading(true);
+
+        const c = await getFormation(courseId);
+
         setCourse(c);
         setCourseModules(c.modules ?? []);
+
+        // Charger les contenus de tous les modules
+        const modules = c.modules ?? [];
+
+        for (const module of modules) {
+          const data = await getContenus(courseId, module.id);
+
+          setModuleContenus((prev) => ({
+            ...prev,
+            [module.id]: data,
+          }));
+        }
+
         setFormData({
           title: c.title,
           description: c.description,
@@ -244,13 +261,17 @@ export const EditCourse: React.FC = () => {
           thumbnail: c.thumbnail ?? "",
           statut: (c as any).statut ?? "brouillon",
         });
+
         setPrerequisites(c.prerequisites ?? []);
-      })
-      .catch(() => {
+      } catch {
         toast.error("Formation introuvable");
         navigate("/app/courses");
-      })
-      .finally(() => setPageLoading(false));
+      } finally {
+        setPageLoading(false);
+      }
+    };
+
+    loadCourse();
   }, [courseId]);
 
   if (currentUser?.role !== "instructor" && currentUser?.role !== "admin") {

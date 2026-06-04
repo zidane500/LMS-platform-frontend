@@ -119,9 +119,6 @@ export const FeedbackModal: React.FC<Props> = ({
 
             {/* Étoiles */}
             <div className="mb-4">
-              <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3 text-center">
-                Votre note (1 à 6 étoiles)
-              </p>
               <div className="flex justify-center gap-2">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <button
@@ -129,7 +126,7 @@ export const FeedbackModal: React.FC<Props> = ({
                     onMouseEnter={() => setHovered(i)}
                     onMouseLeave={() => setHovered(0)}
                     onClick={() => setNote(i)}
-                    className="transition-all duration-150 hover:scale-110"
+                    className="transition-all duration-150"
                   >
                     <Star
                       className={`w-9 h-9 transition-colors ${
@@ -141,11 +138,11 @@ export const FeedbackModal: React.FC<Props> = ({
                   </button>
                 ))}
               </div>
-              {(hovered || note) > 0 && (
+              {note > 0 && (
                 <p
-                  className={`text-center text-sm font-semibold mt-2 ${colors[hovered || note]}`}
+                  className={`text-center text-sm font-semibold mt-2 ${colors[note]}`}
                 >
-                  {labels[hovered || note]}
+                  {labels[note]}
                 </p>
               )}
             </div>
