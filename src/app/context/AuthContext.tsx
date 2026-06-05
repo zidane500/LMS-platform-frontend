@@ -97,7 +97,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
     // Sauvegarde du token et de l'utilisateur dans localStorage
     localStorage.setItem("auth_token", token);
-    localStorage.setItem("auth_user", JSON.stringify(user));
 
     setCurrentUser(user);
     return user;
@@ -108,7 +107,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const { user, token } = await registerUser(data);
 
     localStorage.setItem("auth_token", token);
-    localStorage.setItem("auth_user", JSON.stringify(user));
 
     setCurrentUser(user);
     return user;

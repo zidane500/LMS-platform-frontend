@@ -84,7 +84,18 @@ export const Login: React.FC = () => {
           initTurnstile();
         }
       }, 100);
-      return () => clearInterval(interval);
+
+      const timeout = setTimeout(() => {
+        clearInterval(interval);
+        // Turnstile non chargé après 8s → on laisse passer mais on log
+        console.warn("Turnstile script non chargé après 8s");
+        setTurnstileReady(true);
+      }, 8000);
+
+      return () => {
+        clearInterval(interval);
+        clearTimeout(timeout);
+      };
     }
 
     return () => {
