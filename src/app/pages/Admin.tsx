@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
+import { Shield } from "lucide-react";
 import { motion } from "motion/react";
 import {
   Users,
@@ -201,6 +202,14 @@ export const Admin: React.FC = () => {
             <Link to="/app/admin/user-management">
               <Button variant="outline" className="gap-2 w-full sm:w-auto">
                 <Users className="w-4 h-4" /> Gérer les utilisateurs
+              </Button>
+            </Link>
+            <Link to="/app/admin/2fa-setup">
+              <Button
+                variant="outline"
+                className="gap-2 w-full sm:w-auto border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950"
+              >
+                <Shield className="w-4 h-4" /> Configurer la 2FA
               </Button>
             </Link>
           </div>

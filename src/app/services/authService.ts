@@ -43,6 +43,7 @@ export interface LoginData {
   email: string;
   mot_de_passe: string;
   cf_turnstile_response?: string | null;
+  two_factor_code?: string;
 }
 
 // ─── MAPPER ──────────────────────────────────────────────
@@ -86,8 +87,14 @@ export async function registerUser(
 // ─── CONNEXION ───────────────────────────────────────────
 export async function loginUser(
   data: LoginData,
-): Promise<{ user: User; token: string }> {
+): Promise<{ user: User; token: string } | { requires_2fa: true }> {
   const response = await api.post("/auth/login", data);
+
+  // Le backend demande le code 2FA
+  if (response.data.requires_2fa) {
+    return { requires_2fa: true };
+  }
+
   return {
     user: mapApiUserToUser(response.data.user),
     token: response.data.token,
@@ -119,5 +126,26 @@ export async function resetPassword(data: {
   mot_de_passe_confirmation: string;
 }): Promise<string> {
   const response = await api.post("/auth/reset-password", data);
+  return response.data.message;
+}
+
+// ─── SETUP 2FA ───────────────────────────────────────────
+export async function setup2FA(): Promise<{
+  secret: string;
+  qr_code_url: string;
+}> {
+  const response = await api.post("/2fa/setup");
+  return response.data;
+}
+
+// ─── ACTIVER 2FA ─────────────────────────────────────────
+export async function enable2FA(code: string): Promise<string> {
+  const response = await api.post("/2fa/enable", { code });
+  return response.data.message;
+}
+
+// ─── DÉSACTIVER 2FA ──────────────────────────────────────
+export async function disable2FA(code: string): Promise<string> {
+  const response = await api.post("/2fa/disable", { code });
   return response.data.message;
 }

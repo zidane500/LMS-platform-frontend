@@ -29,6 +29,7 @@ import { BadgesPage } from "./pages/BadgesPage";
 import { VerifyCertificate } from "./pages/VerifyCertificate";
 import { AdminUserProfile } from "./pages/AdminUserProfile";
 import { InboxPage } from "./pages/InboxPage";
+import { TwoFactorSetup } from "./pages/TwoFactorSetup";
 
 export const router = createBrowserRouter([
   {
@@ -151,6 +152,10 @@ export const router = createBrowserRouter([
       {
         path: "admin/user-profile/:userId",
         Component: AdminUserProfile,
+      },
+      {
+        path: "admin/2fa-setup",
+        Component: TwoFactorSetup,
       },
     ],
   },

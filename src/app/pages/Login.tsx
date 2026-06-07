@@ -47,6 +47,8 @@ export const Login: React.FC = () => {
   const [turnstileReady, setTurnstileReady] = useState(false);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
 
   // ✅ Initialiser Turnstile après le montage
   useEffect(() => {
@@ -118,15 +120,22 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const user = await login({
+      const result = await login({
         email,
         mot_de_passe: password,
-        // ✅ Envoi du token Turnstile au backend
         cf_turnstile_response: TURNSTILE_ENABLED ? turnstileToken : "bypass",
+        two_factor_code: requires2FA ? twoFactorCode : undefined,
       });
 
-      toast.success(`Bienvenue ${user.firstName} !`);
-      navigate(user.role === "admin" ? "/app/admin" : "/app");
+      // Le backend demande le code 2FA
+      if ("requires_2fa" in result) {
+        setRequires2FA(true);
+        setLoading(false);
+        return;
+      }
+
+      toast.success(`Bienvenue ${result.firstName} !`);
+      navigate(result.role === "admin" ? "/app/admin" : "/app");
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         const message =
@@ -284,6 +293,36 @@ export const Login: React.FC = () => {
                   </button>
                 </div>
               </motion.div>
+
+              {/* Champ 2FA — affiché uniquement si le backend le demande */}
+              {requires2FA && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-2"
+                >
+                  <Label htmlFor="twoFactor" className="text-sm font-medium">
+                    Code d'authentification
+                  </Label>
+                  <div className="relative group">
+                    <Input
+                      id="twoFactor"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="Code à 6 chiffres"
+                      value={twoFactorCode}
+                      onChange={(e) => setTwoFactorCode(e.target.value)}
+                      className="h-11 text-center tracking-widest text-lg"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 text-center">
+                    Ouvre Google Authenticator ou Authy et entre le code
+                  </p>
+                </motion.div>
+              )}
 
               {/* Mot de passe oublié */}
               <motion.div

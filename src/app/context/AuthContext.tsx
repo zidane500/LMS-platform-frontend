@@ -25,15 +25,11 @@ import {
 
 // ─── TYPE DU CONTEXTE ────────────────────────────────────
 interface AuthContextType {
-  // L'utilisateur actuellement connecté (null si pas connecté)
   currentUser: User | null;
-  // true si on est en train de vérifier la session au chargement
   loading: boolean;
-  // true si l'utilisateur est connecté
   isAuthenticated: boolean;
 
-  // Fonctions disponibles dans toute l'application
-  login: (data: LoginData) => Promise<User>;
+  login: (data: LoginData) => Promise<User | { requires_2fa: true }>;
   register: (data: RegisterData) => Promise<User>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<string>;
@@ -92,12 +88,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   // ─── CONNEXION ─────────────────────────────────────────
-  const login = async (data: LoginData): Promise<User> => {
-    const { user, token } = await loginUser(data);
+  const login = async (
+    data: LoginData,
+  ): Promise<User | { requires_2fa: true }> => {
+    const response = await loginUser(data);
 
-    // Sauvegarde du token et de l'utilisateur dans localStorage
+    // Le backend demande le code 2FA → on retourne le signal sans connecter
+    if ("requires_2fa" in response) {
+      return { requires_2fa: true };
+    }
+
+    const { user, token } = response;
     localStorage.setItem("auth_token", token);
-
     setCurrentUser(user);
     return user;
   };
