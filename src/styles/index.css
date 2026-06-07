@@ -39,3 +39,11 @@ select,
 textarea {
   transition: all 0.2s ease-in-out;
 }
+
+/* Masque le bouton natif "afficher mot de passe" du navigateur */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+input::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}

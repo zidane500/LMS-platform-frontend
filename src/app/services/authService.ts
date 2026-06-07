@@ -149,3 +149,9 @@ export async function disable2FA(code: string): Promise<string> {
   const response = await api.post("/2fa/disable", { code });
   return response.data.message;
 }
+
+// ─── STATUT 2FA ──────────────────────────────────────────
+export async function get2FAStatus(): Promise<{ enabled: boolean }> {
+  const response = await api.get("/2fa/status");
+  return response.data;
+}

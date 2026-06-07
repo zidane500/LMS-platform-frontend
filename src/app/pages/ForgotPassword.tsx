@@ -2,7 +2,7 @@
 //
 // Page "Mot de passe oublié" - envoie un email de réinitialisation
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { motion } from "motion/react";
 import { GraduationCap, Mail, ArrowLeft, CheckCircle } from "lucide-react";
@@ -24,8 +24,23 @@ export const ForgotPassword: React.FC = () => {
   const { forgotPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  // "sent" devient true quand l'email a été envoyé avec succès
   const [sent, setSent] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
+
+  // ─── Countdown timer ────────────────────────────────────
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = setInterval(() => {
+      setRetryAfter((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [retryAfter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +53,12 @@ export const ForgotPassword: React.FC = () => {
       toast.success("Email envoyé ! Vérifiez votre boîte mail.");
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
+        // ── Trop de tentatives (429) ──────────────────────
+        if (error.response?.status === 429) {
+          setRetryAfter(60);
+          toast.error("Trop de tentatives. Attendez 60 secondes.");
+          return;
+        }
         const message =
           error.response?.data?.errors?.email?.[0] ||
           error.response?.data?.message ||
@@ -117,14 +138,16 @@ export const ForgotPassword: React.FC = () => {
 
                 <Button
                   type="submit"
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium"
-                  disabled={loading}
+                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium disabled:opacity-60"
+                  disabled={loading || retryAfter > 0}
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Envoi...
                     </div>
+                  ) : retryAfter > 0 ? (
+                    `Réessayer dans ${retryAfter}s`
                   ) : (
                     "Envoyer le lien"
                   )}

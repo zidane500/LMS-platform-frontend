@@ -108,6 +108,23 @@ export const Login: React.FC = () => {
     };
   }, []);
 
+  const [retryAfter, setRetryAfter] = useState(0);
+
+  // ─── Countdown timer ────────────────────────────────────
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = setInterval(() => {
+      setRetryAfter((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [retryAfter]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -138,6 +155,17 @@ export const Login: React.FC = () => {
       navigate(result.role === "admin" ? "/app/admin" : "/app");
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
+        // ── Trop de tentatives (429) ──────────────────────
+        if (error.response?.status === 429) {
+          setRetryAfter(60);
+          toast.error("Trop de tentatives. Attendez 60 secondes.");
+          return;
+        }
+        if (error.response?.status === 422 && requires2FA) {
+          toast.error("Code 2FA invalide ou expiré. Réessayez.");
+          setTwoFactorCode("");
+          return;
+        }
         const message =
           error.response?.data?.errors?.email?.[0] ||
           error.response?.data?.message ||
@@ -147,7 +175,6 @@ export const Login: React.FC = () => {
         toast.error("Une erreur est survenue. Réessayez.");
       }
 
-      // ✅ Reset Turnstile après erreur
       if (widgetIdRef.current && window.turnstile) {
         window.turnstile.reset(widgetIdRef.current);
         setTurnstileToken(null);
@@ -277,7 +304,12 @@ export const Login: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
-                    className="pl-10 pr-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700"
+                    className="pl-10 pr-10 h-11 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
+                    style={
+                      {
+                        WebkitTextSecurity: showPassword ? "none" : undefined,
+                      } as React.CSSProperties
+                    }
                     required
                   />
                   <button
@@ -349,14 +381,16 @@ export const Login: React.FC = () => {
               >
                 <Button
                   type="submit"
-                  className="w-48 h-11 mx-auto block bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30"
-                  disabled={loading}
+                  className="w-48 h-11 mx-auto block bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/30 disabled:opacity-60"
+                  disabled={loading || retryAfter > 0}
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Connexion...
                     </div>
+                  ) : retryAfter > 0 ? (
+                    `Réessayer dans ${retryAfter}s`
                   ) : (
                     "Se connecter"
                   )}

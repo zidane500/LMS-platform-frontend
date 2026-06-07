@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { Shield, ShieldCheck, ShieldOff, Smartphone } from "lucide-react";
@@ -13,11 +13,16 @@ import {
   CardDescription,
 } from "../components/ui/card";
 import { toast } from "sonner";
-import { setup2FA, enable2FA, disable2FA } from "../services/authService";
+import {
+  setup2FA,
+  enable2FA,
+  disable2FA,
+  get2FAStatus,
+} from "../services/authService";
 import { useAuth } from "../context/AuthContext";
 
 // ─── Type des étapes ─────────────────────────────────────
-type Step = "idle" | "scan" | "confirm" | "disable" | "done";
+type Step = "idle" | "scan" | "confirm" | "disable" | "done" | "disabled";
 
 export const TwoFactorSetup: React.FC = () => {
   const { currentUser } = useAuth();
@@ -27,6 +32,23 @@ export const TwoFactorSetup: React.FC = () => {
   const [secret, setSecret] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [is2FAActive, setIs2FAActive] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  // ─── Vérifier l'état 2FA au chargement ─────────────────
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const data = await get2FAStatus();
+        setIs2FAActive(data.enabled);
+      } catch {
+        // silencieux
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+    checkStatus();
+  }, []);
 
   // ─── Lancer le setup ────────────────────────────────────
   const handleSetup = async () => {
@@ -74,7 +96,8 @@ export const TwoFactorSetup: React.FC = () => {
       await disable2FA(code);
       toast.success("2FA désactivée.");
       setCode("");
-      setStep("idle");
+      setIs2FAActive(false);
+      setStep("disabled");
     } catch {
       toast.error("Code invalide. Réessayez.");
       setCode("");
@@ -115,31 +138,80 @@ export const TwoFactorSetup: React.FC = () => {
             {/* ── idle : boutons activer / désactiver ─────── */}
             {step === "idle" && (
               <div className="space-y-4">
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-                  <Smartphone className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Tu auras besoin de <strong>Google Authenticator</strong> ou{" "}
-                    <strong>Authy</strong> sur ton téléphone ou PC.
-                  </p>
-                </div>
+                {/* Statut actuel */}
+                {checkingStatus ? (
+                  <div className="flex justify-center py-4">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Badge statut */}
+                    <div
+                      className={`flex items-center gap-3 p-4 rounded-xl border ${
+                        is2FAActive
+                          ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                          : "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800"
+                      }`}
+                    >
+                      {is2FAActive ? (
+                        <ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      ) : (
+                        <Smartphone className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                      )}
+                      <p
+                        className={`text-sm ${
+                          is2FAActive
+                            ? "text-green-700 dark:text-green-300"
+                            : "text-blue-700 dark:text-blue-300"
+                        }`}
+                      >
+                        {is2FAActive ? (
+                          <>
+                            <strong>2FA activée</strong> — ton compte est
+                            protégé.
+                          </>
+                        ) : (
+                          <>
+                            Tu auras besoin de{" "}
+                            <strong>Google Authenticator</strong> ou{" "}
+                            <strong>Authy</strong>.
+                          </>
+                        )}
+                      </p>
+                    </div>
 
-                <Button
-                  onClick={handleSetup}
-                  disabled={loading}
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
-                >
-                  <ShieldCheck className="w-4 h-4 mr-2" />
-                  {loading ? "Chargement..." : "Activer la 2FA"}
-                </Button>
+                    {/* Bouton Activer — masqué si déjà active */}
+                    {!is2FAActive && (
+                      <Button
+                        onClick={handleSetup}
+                        disabled={loading}
+                        className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                      >
+                        <ShieldCheck className="w-4 h-4 mr-2" />
+                        {loading ? "Chargement..." : "Activer la 2FA"}
+                      </Button>
+                    )}
 
-                <Button
-                  onClick={() => setStep("disable")}
-                  variant="outline"
-                  className="w-full h-11 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400"
-                >
-                  <ShieldOff className="w-4 h-4 mr-2" />
-                  Désactiver la 2FA
-                </Button>
+                    {/* Bouton Désactiver — visible seulement si active */}
+                    {is2FAActive && (
+                      <Button
+                        onClick={() => setStep("disable")}
+                        variant="outline"
+                        className="w-full h-11 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400"
+                      >
+                        <ShieldOff className="w-4 h-4 mr-2" />
+                        Désactiver la 2FA
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => navigate("/app/admin")}
+                      variant="ghost"
+                      className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                    >
+                      Retour
+                    </Button>
+                  </>
+                )}
               </div>
             )}
 
@@ -354,8 +426,40 @@ export const TwoFactorSetup: React.FC = () => {
                   onClick={() => navigate("/app/admin")}
                   className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
                 >
-                  Retour au tableau de bord
+                  Retour
                 </Button>
+              </motion.div>
+            )}
+            {/* ── disabled : confirmation désactivation ───────── */}
+            {step === "disabled" && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-5 text-center"
+              >
+                <div className="flex justify-center">
+                  <div className="p-4 bg-red-100 dark:bg-red-950 rounded-full">
+                    <ShieldOff className="w-12 h-12 text-red-600" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-lg font-semibold text-red-700 dark:text-red-400">
+                    2FA désactivée
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Ton compte n'est plus protégé par la double
+                    authentification.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <Button
+                    onClick={() => navigate("/app/admin")}
+                    variant="ghost"
+                    className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                  >
+                    Retour
+                  </Button>
+                </div>
               </motion.div>
             )}
           </CardContent>
